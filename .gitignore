@@ -1,0 +1,6 @@
+.env
+merchants_raw.json
+__pycache__/
+.venv/
+*.pkl
+.DS_Store

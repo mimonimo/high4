@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HIGH1 POINT FLOW</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"
+  integrity="sha384-cCVCZkAjYNxaYKbM8lsArLznDF/SvMFr1jcZrvOpSTCa0W40ZAdLzHCEulnUa5i7" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<style>
+  :root{
+    --coal:#17181A; --ink:#1A1C1F; --bg:#ECEDEF; --card:#FFFFFF; --line:#D8DADD;
+    --muted:#5F646B; --safety:#F6C915;
+    --danger:#C13221; --out-c:#8F1D12; --mid-c:#B8860B; --ok:#159A6C; --idle:#3163C4;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;
+    --disp:'Black Han Sans',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);
+    font-family:'IBM Plex Sans KR','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+  :focus-visible{outline:2px solid var(--coal);outline-offset:2px}
+
+  /* ── 상황판 헤더: 갱도 입구 표지 */
+  header{background:var(--coal);color:#fff;padding-top:30px}
+  .eyebrow{font-size:11px;letter-spacing:.2em;color:var(--safety);font-weight:700;margin-bottom:6px}
+  h1{font-family:var(--disp);font-weight:400;font-size:34px;letter-spacing:.02em;line-height:1.1}
+  .sub{color:#A6ABB1;font-size:13.5px;margin-top:8px;max-width:640px}
+  .tabs{display:flex;gap:6px;margin-top:24px;overflow-x:auto}
+  .tab{padding:11px 18px;background:#212327;border:none;color:#9BA0A6;font-family:inherit;
+    font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;transition:.12s}
+  .tab:hover{background:#2A2D31;color:#E4E7EB}
+  .tab[aria-selected=true]{background:var(--safety);color:var(--coal)}
+  .tab:focus-visible{outline-color:var(--safety)}
+
+  main{padding:28px 0 56px}
+  .panel{display:none}
+  .panel.on{display:block}
+
+  /* ── KPI: 계기판 */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:22px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-top:2px solid var(--coal);padding:13px 15px}
+  .kpi .k{font-size:11.5px;color:var(--muted);letter-spacing:.03em;margin-bottom:7px}
+  .kpi .v{font-family:var(--mono);font-size:23px;font-weight:600;letter-spacing:-.02em}
+  .kpi .v small{font-family:inherit;font-size:12px;font-weight:500;color:var(--muted);margin-left:2px}
+  .kpi.alert{border-top-color:var(--danger)}.kpi.alert .v{color:var(--danger)}
+  .kpi.idle{border-top-color:var(--idle)}.kpi.idle .v{color:var(--idle)}
+
+  /* ── 필터 */
+  .filters{background:var(--card);border:1px solid var(--line);padding:15px 16px;margin-bottom:16px}
+  .row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  .row+.row{margin-top:12px;padding-top:12px;border-top:1px solid #EDEEEF}
+  input[type=search]{flex:1 1 240px;min-width:180px;padding:10px 12px;border:1px solid #C9CCD0;
+    font-size:14px;font-family:inherit;background:#FAFAFB}
+  input[type=search]:focus{outline:2px solid var(--coal);outline-offset:-1px;box-shadow:0 0 0 4px rgba(246,201,21,.3)}
+  select{padding:10px 12px;border:1px solid #C9CCD0;font-size:13.5px;font-family:inherit;background:#FAFAFB}
+  select:focus{outline:2px solid var(--coal);outline-offset:-1px;box-shadow:0 0 0 4px rgba(246,201,21,.3)}
+  .chip{padding:7px 13px;border:1px solid #C9CCD0;background:#fff;font-size:13px;
+    cursor:pointer;font-family:inherit;color:var(--muted);transition:.12s}
+  .chip:hover{border-color:var(--ink);color:var(--ink)}
+  .chip[aria-pressed=true]{background:var(--coal);border-color:var(--coal);color:#fff;font-weight:700}
+  .lbl{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.05em;margin-right:2px}
+  .count{font-size:13px;color:var(--muted);margin:0 0 12px 2px}
+  .count b{color:var(--ink);font-family:var(--mono);font-weight:600}
+
+  /* ── 가맹점 카드 */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:11px}
+  .mc{background:var(--card);border:1px solid var(--line);padding:14px 15px}
+  .mc .nm{font-size:15.5px;font-weight:700;letter-spacing:-.01em;margin-bottom:3px}
+  .mc .ad{font-size:12px;color:var(--muted);line-height:1.45;margin-bottom:10px;height:34px;overflow:hidden}
+  .tags{display:flex;gap:5px;margin-bottom:11px;flex-wrap:wrap}
+  .tag{font-size:11px;padding:3px 8px;font-weight:600;background:#EEEFF1;color:#4C5157}
+  .tag.ai{background:#FBF3D2;color:#6E5B0C}
+  .tag.un{background:#EEEFF1;color:#9198A1}
+  .maplink{margin-left:auto;font-size:11px;color:var(--idle);text-decoration:none;font-weight:600;align-self:center}
+  .maplink:hover{text-decoration:underline}
+  .maplbl{background:transparent;border:none;box-shadow:none;font-weight:700;font-size:11.5px;color:#17181A;
+    text-shadow:0 0 3px #fff,0 0 3px #fff}
+  .maplbl::before{display:none}
+  #map{z-index:0}
+  .amt-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+  .amt-l{font-size:11px;color:var(--muted)}
+  .amt{font-family:var(--mono);font-size:14.5px;font-weight:600}
+  .bar{height:8px;background:#E7E8EA;overflow:hidden;position:relative}
+  .bar::after{content:"";position:absolute;inset:0;pointer-events:none;background:
+    linear-gradient(90deg,transparent calc(25% - 1px),var(--card) calc(25% - 1px) 25%,
+      transparent 25% calc(50% - 1px),var(--card) calc(50% - 1px) 50%,
+      transparent 50% calc(75% - 1px),var(--card) calc(75% - 1px) 75%,transparent 75%)}
+  .fill{height:100%}
+  .fill.out{background:var(--out-c)}.fill.low{background:var(--danger)}
+  .fill.mid{background:var(--mid-c)}.fill.high{background:var(--ok)}
+  .st{font-size:11.5px;margin-top:7px;font-weight:700}
+  .st.low{color:var(--danger)}.st.mid{color:var(--mid-c)}.st.high{color:var(--ok)}
+  /* 시그니처: 결제 불가 봉인 테이프 */
+  .tape{margin:9px -21px 2px;transform:rotate(-2deg);padding:0;
+    background:repeating-linear-gradient(-45deg,var(--safety) 0 12px,var(--coal) 12px 24px);
+    display:flex;justify-content:center}
+  .tape span{background:var(--safety);color:var(--coal);font-size:11px;font-weight:700;
+    letter-spacing:.14em;padding:3px 12px;margin:4px 0}
+  .alt{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--muted)}
+  .alt b{color:var(--ok)}
+
+  .empty{grid-column:1/-1;background:var(--card);border:1px dashed #C9CCD0;padding:40px;text-align:center;color:var(--muted)}
+
+  /* ── 진단 */
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:#44484F;margin:6px 0 16px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:12px;height:12px;display:inline-block}
+  .chartbox{background:var(--card);border:1px solid var(--line);padding:14px}
+  .note{margin-top:16px;padding:13px 15px;background:var(--card);border:1px solid var(--line);
+    border-left:3px solid var(--safety);font-size:12.5px;color:#44484F;line-height:1.7}
+  .note b{color:var(--ink)}
+
+  /* ── 리밸런싱 */
+  .rb-ctrl{background:var(--card);border:1px solid var(--line);padding:20px 22px;margin-bottom:18px}
+  .rb-ctrl label{font-size:13px;font-weight:700;color:var(--ink)}
+  .rb-val{font-family:var(--disp);font-weight:400;font-size:40px;color:var(--ink);margin:2px 0 0;line-height:1.15}
+  .rb-val small{font-size:22px}
+  input[type=range]{width:100%;margin-top:12px;accent-color:var(--coal)}
+  .rb-hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7}
+  .rb-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  .rb-card{background:var(--card);border:1px solid var(--line);border-top:2px solid var(--coal);padding:18px}
+  .rb-card .t{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .rb-card .big{font-family:var(--mono);font-size:25px;font-weight:600}
+  .rb-card .d{font-size:13px;font-weight:700;margin-top:5px}
+  .rb-card .d.good{color:var(--ok)}
+  .rb-arrow{color:var(--muted);font-weight:400;font-size:18px}
+
+  footer{border-top:1px solid var(--line);padding:18px 0 30px;font-size:11.5px;color:var(--muted);line-height:1.7}
+
+  code{background:#EEEFF1;padding:1px 5px;font-size:11.5px}
+  @media (max-width:640px){h1{font-size:27px}.rb-val{font-size:32px}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="eyebrow">폐광지역 상생 포인트 상황판 · 팀 HIGH4</div>
+    <h1>HIGH1 POINT FLOW</h1>
+    <p class="sub">가맹점 1,548곳의 잔여한도와 사용기록 507,628건으로 폐광지역 상생 포인트의 소비 사각지대를 찾습니다.</p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true"  data-p="p1">가맹점 조회</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="p2">사각지대 진단</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="p3">수요 리밸런싱</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- 탭1 -->
+  <section class="panel on" id="p1">
+    <div class="filters">
+      <div class="row">
+        <input type="search" id="q" placeholder="가맹점명·주소 검색 (예: 국수, 태백)" aria-label="검색">
+        <select id="ind"><option value="">업종 전체</option></select>
+        <select id="sort">
+          <option value="amt-asc">잔여한도 적은순 (소진 임박)</option>
+          <option value="amt-desc">잔여한도 많은순</option>
+          <option value="name">가나다순</option>
+        </select>
+        <button class="chip" id="exOut" aria-pressed="false">결제 불가(0원) 제외</button>
+      </div>
+      <div class="row" id="regionChips"><span class="lbl">지역</span></div>
+    </div>
+    <p class="count" id="count"></p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <!-- 탭2 -->
+  <section class="panel" id="p2">
+    <div class="kpis" id="kpis"></div>
+    <div class="chartbox" style="margin-bottom:6px"><div id="map" style="height:360px"></div></div>
+    <p class="count" style="margin:6px 0 16px 2px">원 크기 = 가맹점 수 · 색이 진할수록 가맹점당 사용량이 많음 · 원을 누르면 해당 지역 가맹점 조회로 이동 ·
+      원 위치는 읍·시 행정 중심(OpenStreetMap 기준)이며 개별 가맹점 위치가 아닙니다</p>
+    <div class="legend">
+      <span><i class="sw" style="background:#C13221"></i>▲ 과부하 — 수요 몰림, 분산 필요</span>
+      <span><i class="sw" style="background:#3163C4"></i>▽ 수요부진 — 이용 저조, 촉진 필요</span>
+      <span><i class="sw" style="background:#fff;border:1px dashed #9BA0A6;font-style:normal;font-size:11px;line-height:10px;text-align:center;color:#5F646B">·</i>공급공백(· 표시) — 가맹점 유치 필요</span>
+      <span><i class="sw" style="background:#fff;border:1px solid #C9CCD0"></i>표본부족(3곳 미만) — 색 없이 숫자만</span>
+    </div>
+    <div class="chartbox"><div id="heatmap" style="height:440px"></div></div>
+    <div class="chartbox" style="margin-top:14px"><div id="scatter" style="height:420px"></div></div>
+    <div class="note" id="diagNote"></div>
+  </section>
+
+  <!-- 탭3 -->
+  <section class="panel" id="p3">
+    <div class="rb-ctrl">
+      <label for="rb">과부하 가맹점의 수요를 유휴 가맹점으로 이전</label>
+      <p class="rb-val"><span id="rbVal">10</span><small>%</small></p>
+      <input type="range" id="rb" min="0" max="30" value="10" step="1">
+      <p class="rb-hint">사북읍 등 과부하 지역에 몰린 수요 일부를, 한도가 남아도는 가맹점(만액 242곳, 유휴 9.68억원)으로 옮기면 어떻게 되는지 시뮬레이션합니다.
+      가맹점별 사용액은 실측 잔여한도로 계산(한도 400만원 − 잔액)하며, 소진·임박 가맹점 사용액의 이전 비율만큼을 같은 지역 만액 가맹점에
+      그 지역 활성 가맹점의 평균 사용액까지 배분한 뒤 1,548곳을 다시 집계합니다.
+      소진·임박 가맹점은 이미 한도의 97% 이상을 쓴 상태라 몇 %만 이전해도 10만원 문턱을 한꺼번에 넘으며,
+      잔액 0원 가맹점은 소진 이후의 수요가 기록되지 않으므로 회복 폭은 최소 추정치입니다.</p>
+    </div>
+    <div class="rb-out">
+      <div class="rb-card"><div class="t">소진·임박 가맹점 평균 잔액</div>
+        <div class="big"><span id="rbAvgBefore"></span> <span class="rb-arrow">→</span> <span id="rbAvgAfter"></span></div>
+        <div class="d good" id="rbLowDelta"></div></div>
+      <div class="rb-card"><div class="t">미사용 가맹점 (한도 400만원 그대로)</div>
+        <div class="big"><span id="rbFullBefore"></span> <span class="rb-arrow">→</span> <span id="rbFullAfter"></span></div>
+        <div class="d good" id="rbFullDelta"></div></div>
+      <div class="rb-card"><div class="t">사용액 지니계수 (가맹점 간 쏠림)</div>
+        <div class="big"><span id="rbGiniBefore"></span> <span class="rb-arrow">→</span> <span id="rbGiniAfter"></span></div>
+        <div class="d good" id="rbGiniDelta"></div></div>
+      <div class="rb-card"><div class="t">활성화되는 유휴 한도</div>
+        <div class="big" id="rbAmt"></div>
+        <div class="d" id="rbAmtHint">만액 가맹점에 배분되는 사용액</div></div>
+    </div>
+    <div class="note">
+      소진·임박 가맹점은 이미 한도의 97% 이상을 쓴 상태라, 수요의 3%만 분산돼도 잔액 10만원 이상을 회복합니다.
+      실제 포인트 발급 제도 변경은 강원랜드의 권한이므로, 본 화면은 <b>정책 효과를 미리 보는 시뮬레이터</b>입니다.
+      A지점(과부하)에서 결제 시 B지점(유휴) 전용 보너스 포인트를 지급하는 방식 등으로 구현할 수 있으며,
+      재원은 이미 존재하는 유휴 한도이므로 가맹점을 새로 늘리지 않아도 됩니다.
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    데이터 — 공공데이터포털 · ㈜강원랜드 「하이원포인트 사용현황」(2025년, 507,628건) · 「하이원포인트 가맹점 상세정보」(1,548개소, 캠프 중 1회 수집한 정적 데이터) ·
+    업종은 상호명 기반 추정으로 미분류 152곳은 진단 지표에서 제외 · 팀 HIGH4
+  </div>
+</footer>
+
+<script>
+const LIMIT=4000000, LOW=100000, MID=2500000;
+const FONT={family:"'IBM Plex Sans KR',sans-serif",color:'#3A3E44'};
+// 읍·시 행정 중심 좌표 — OpenStreetMap Nominatim 조회값(2026-07). 개별 가맹점 위치 아님.
+const REGION_POS={
+  '사북읍':[37.2399,128.8267],'고한읍':[37.2040,128.8516],'정선군':[37.3796,128.6618],
+  '태백시':[37.1638,128.9857],'영월군':[37.1835,128.4620],'삼척시':[37.4499,129.1653]
+};
+let M=[], MAT=[], META={};
+
+Promise.all([
+  fetch('data/merchants.json').then(r=>r.json()),
+  fetch('data/matrix.json').then(r=>r.json()),
+  fetch('data/meta.json').then(r=>r.json()),
+]).then(([m,mat,meta])=>{ M=m; MAT=mat; META=meta; init(); })
+ .catch(e=>{ document.getElementById('grid').innerHTML='<div class="empty">데이터를 불러오지 못했습니다. data/ 폴더의 JSON을 확인하세요.</div>'; console.error(e); });
+
+function init(){ buildTab1(); buildTab2(); buildTab3(); wireTabs(); }
+
+/* ── 탭 전환 */
+function wireTabs(){
+  document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+    t.setAttribute('aria-selected','true');
+    document.getElementById(t.dataset.p).classList.add('on');
+    if(t.dataset.p==='p2'){ Plotly.Plots.resize('heatmap'); Plotly.Plots.resize('scatter');
+      if(window._map){ window._map.invalidateSize();
+        if(!window._mapFit){ window._mapFit=true;
+          window._map.fitBounds(Object.values(REGION_POS),{padding:[34,34]}); } } }
+  });
+}
+
+/* ── 탭1: 조회 */
+let activeRegions=new Set();
+function buildTab1(){
+  const won=n=>n.toLocaleString('ko-KR')+'원';
+  const tier=a=>a===0?'out':a<LOW?'low':a<=MID?'mid':'high';
+  const label=a=>a===0?'소진 — 포인트 결제 불가':a<LOW?'소진 임박 — 사용 전 확인':a<=MID?'사용 가능':'여유 있음';
+
+  // 주소에서 근접성 단서 추출: 도로명+건물번호(99.9% 커버), 동/리(50.7%)
+  const roadOf=a=>{const p=a.match(/([가-힣0-9]+(?:로|길))\s*(\d+)/);return p?{road:p[1],no:+p[2]}:null;};
+  const dongOf=a=>{const p=a.match(/\(([가-힣0-9]+동)\)/)||a.match(/([가-힣]{1,6}(?:동|리))(?=\s|\d|$|,)/);return p?p[1]:null;};
+  M.forEach(s=>{s._rd=roadOf(s.addr);s._dg=dongOf(s.addr);});
+
+  const $q=document.getElementById('q'),$ind=document.getElementById('ind'),
+        $sort=document.getElementById('sort'),$grid=document.getElementById('grid'),
+        $count=document.getElementById('count'),$rc=document.getElementById('regionChips'),
+        $ex=document.getElementById('exOut');
+
+  window._regionBtns={};
+  META.region_order.forEach(r=>{
+    const b=document.createElement('button');b.className='chip';b.textContent=r;b.setAttribute('aria-pressed','false');
+    b.onclick=()=>{const on=b.getAttribute('aria-pressed')==='true';b.setAttribute('aria-pressed',String(!on));
+      on?activeRegions.delete(r):activeRegions.add(r);render();};
+    window._regionBtns[r]=b;
+    $rc.appendChild(b);
+  });
+  [...new Set(M.map(s=>s.industry))].filter(x=>x!=='미분류').sort().forEach(i=>{
+    const o=document.createElement('option');o.value=i;o.textContent=i;$ind.appendChild(o);
+  });
+  $ex.onclick=()=>{const on=$ex.getAttribute('aria-pressed')==='true';$ex.setAttribute('aria-pressed',String(!on));render();};
+
+  // 대안 추천: 같은 지역·업종 + 잔액 250만↑ 후보를 ①같은 도로명(번호 가까운 순) ②같은 동/리 ③잔액 많은 순으로
+  function findAlt(s){
+    if(s.amt>=LOW||s.industry==='미분류')return null;
+    const cand=M.filter(x=>x.region===s.region&&x.industry===s.industry&&x.amt>=MID&&x.id!==s.id);
+    if(!cand.length)return null;
+    const rank=x=>{
+      if(s._rd&&x._rd&&x._rd.road===s._rd.road)return[0,Math.abs(x._rd.no-s._rd.no),-x.amt];
+      if(s._dg&&x._dg&&x._dg===s._dg)return[1,0,-x.amt];
+      return[2,0,-x.amt];
+    };
+    cand.sort((a,b)=>{const A=rank(a),B=rank(b);return A[0]-B[0]||A[1]-B[1]||A[2]-B[2];});
+    const alt=cand[0],r=rank(alt)[0];
+    return {alt,near:r===0?'같은 거리':r===1?'같은 동네':null};
+  }
+
+  window.render=function(){
+    const q=$q.value.trim().toLowerCase();
+    const exOn=$ex.getAttribute('aria-pressed')==='true';
+    let rows=M.filter(s=>
+      (!exOn||s.amt>0)&&
+      (!q||s.name.toLowerCase().includes(q)||s.addr.toLowerCase().includes(q))&&
+      (!$ind.value||s.industry===$ind.value)&&
+      (activeRegions.size===0||activeRegions.has(s.region)));
+    const by=$sort.value;
+    rows.sort((a,b)=>by==='amt-desc'?b.amt-a.amt:by==='name'?a.name.localeCompare(b.name,'ko'):a.amt-b.amt);
+    const out=rows.filter(s=>s.amt===0).length;
+    const low=rows.filter(s=>s.amt>0&&s.amt<LOW).length;
+    $count.innerHTML=`<b>${rows.length.toLocaleString()}</b>곳`+
+      (out?` · 소진(0원) <b>${out}</b>곳`:'')+(low?` · 임박 <b>${low}</b>곳`:'');
+    if(!rows.length){$grid.innerHTML='<div class="empty">조건에 맞는 가맹점이 없습니다. 검색어나 필터를 바꿔보세요.</div>';return;}
+    $grid.innerHTML=rows.slice(0,180).map(s=>{
+      const t=tier(s.amt),pct=s.amt===0?0:Math.max(2,Math.min(100,s.amt/LIMIT*100));
+      const rec=findAlt(s);
+      const indTag=s.industry==='미분류'?'<span class="tag un">업종 미분류</span>':`<span class="tag ai">${s.industry} · AI</span>`;
+      const mapq=encodeURIComponent(`${s.name} ${s.region}`);
+      return `<article class="mc ${t}">
+        <div class="nm">${s.name}</div>
+        <div class="ad">${s.addr}</div>
+        <div class="tags"><span class="tag">${s.region}</span>${indTag}<a class="maplink" target="_blank" rel="noopener"
+          href="https://map.kakao.com/link/search/${mapq}">지도 검색 ↗</a></div>
+        <div class="amt-top"><span class="amt-l">포인트 사용 가능</span><span class="amt">${won(s.amt)}</span></div>
+        <div class="bar"><div class="fill ${t}" style="width:${pct}%"></div></div>
+        ${t==='out'?'<div class="tape"><span>포인트 결제 불가</span></div>':`<div class="st ${t}">${label(s.amt)}</div>`}
+        ${rec?`<div class="alt">대신 이용 가능${rec.near?` · ${rec.near}`:''} · <b>${rec.alt.name}</b> (${won(rec.alt.amt)})</div>`:''}
+      </article>`;
+    }).join('')+(rows.length>180?`<div class="empty">외 ${rows.length-180}곳 — 검색으로 좁혀보세요.</div>`:'');
+  };
+  $q.oninput=render;$ind.onchange=render;$sort.onchange=render;render();
+}
+
+/* ── 탭2: 진단 */
+function buildMap(){
+  if(typeof L==='undefined'){ // Leaflet CDN 실패 시에도 나머지 대시보드는 동작
+    document.getElementById('map').innerHTML='<div class="empty" style="border:none">지도를 불러오지 못했습니다. 아래 히트맵에서 같은 내용을 볼 수 있습니다.</div>';
+    return;
+  }
+  const map=L.map('map',{scrollWheelZoom:false,attributionControl:true});
+  window._map=map;
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:14,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+  const ps=META.regions.map(r=>r.per_store);
+  const pmin=Math.min(...ps),pmax=Math.max(...ps);
+  const lerp=(a,b,t)=>Math.round(a+(b-a)*t);
+  const ramp=t=>`rgb(${lerp(0x7F,0x1C,t)},${lerp(0xA6,0x4A,t)},${lerp(0xCB,0x74,t)})`; // #7FA6CB→#1C4A74
+  META.regions.forEach(r=>{
+    const pos=REGION_POS[r.region]; if(!pos)return;
+    const t=(r.per_store-pmin)/(pmax-pmin);
+    const mk=L.circleMarker(pos,{
+      radius:7+Math.sqrt(r.stores)*0.85,
+      color:'#17181A',weight:1,fillColor:ramp(t),fillOpacity:.78
+    }).addTo(map);
+    mk.bindTooltip(`<b>${r.region}</b> 가맹점 ${r.stores}곳<br>사용 ${r.usage.toLocaleString()}건 · 가맹점당 ${r.per_store}건<br>`+
+      `잔액 0원 ${r.zero} · 10만 미만 ${r.low} · 만액 ${r.full}곳`,{direction:'top',offset:[0,-6]});
+    L.tooltip({permanent:true,direction:'bottom',offset:[0,6],className:'maplbl'})
+      .setLatLng(pos).setContent(r.region).addTo(map);
+    mk.on('click',()=>{
+      document.querySelector('.tab[data-p="p1"]').click();
+      const b=window._regionBtns&&window._regionBtns[r.region];
+      if(b&&b.getAttribute('aria-pressed')!=='true')b.click();
+    });
+  });
+  map.fitBounds(Object.values(REGION_POS),{padding:[34,34]});
+}
+function buildTab2(){
+  const R=META.region_order, I=META.inds;
+  buildMap();
+  // KPI
+  const zero=META.regions.reduce((a,r)=>a+r.zero,0);
+  const full=MAT.reduce((a,c)=>a+c.full,0);
+  const gap=MAT.filter(c=>c.type==='공급공백').length;
+  document.getElementById('kpis').innerHTML=[
+    ['총 사용건수',META.total_usage.toLocaleString(),''],
+    ['가맹점',META.total_stores.toLocaleString(),'곳'],
+    ['잔액 0원',zero,'곳',1],
+    ['미사용(만액)',full,'곳',2],
+    ['공급 공백',gap,'/108칸',1],
+  ].map(([k,v,u,cls])=>`<div class="kpi ${cls===1?'alert':cls===2?'idle':''}">
+     <div class="k">${k}</div><div class="v">${v}<small>${u}</small></div></div>`).join('');
+
+  // 히트맵 z=가맹점당 사용량(로그), 공급공백/표본부족은 null
+  const z=R.map(r=>I.map(ind=>{
+    const c=MAT.find(x=>x.region===r&&x.industry===ind);
+    return c&&c.per_store!=null&&c.stores>=3?Math.log10(c.per_store+1):null;
+  }));
+  const txt=R.map(r=>I.map(ind=>{
+    const c=MAT.find(x=>x.region===r&&x.industry===ind);
+    if(!c||c.stores===0)return'·';
+    const mark=c.type==='과부하'?'▲':c.type==='수요부진'?'▽':'';
+    return `${c.stores}${mark}`;
+  }));
+  const hover=R.map(r=>I.map(ind=>{
+    const c=MAT.find(x=>x.region===r&&x.industry===ind);
+    if(!c)return'';
+    if(c.stores===0)return `${r} · ${ind}<br>가맹점 없음 (공급 공백)`;
+    return `${r} · ${ind}<br>가맹점 ${c.stores}곳 · 사용 ${c.usage.toLocaleString()}건`+
+           (c.per_store!=null?`<br>가맹점당 ${c.per_store}건 · ${c.type}`:`<br>${c.type}`);
+  }));
+  Plotly.newPlot('heatmap',[{
+    type:'heatmap',z,x:I,y:R,text:txt,texttemplate:'%{text}',textfont:{size:10,color:'#3A3E44'},
+    customdata:hover,hovertemplate:'%{customdata}<extra></extra>',
+    colorscale:[[0,'#EEF3F8'],[0.5,'#7FA6CB'],[1,'#1C4A74']],showscale:true,
+    colorbar:{title:{text:'가맹점당<br>사용량(log)',font:{size:10}},thickness:12,len:.7},
+    xgap:2,ygap:2
+  }],{
+    font:FONT,
+    margin:{l:60,r:10,t:10,b:110},
+    xaxis:{tickangle:-45,tickfont:{size:10.5},side:'bottom'},
+    yaxis:{tickfont:{size:12},autorange:'reversed'},
+    paper_bgcolor:'transparent',plot_bgcolor:'transparent'
+  },{displayModeBar:false,responsive:true});
+
+  // 산점도: x=가맹점수, y=사용건수, 색=진단 (검증된 상태 팔레트)
+  const colors={'과부하':'#C13221','수요부진':'#3163C4','정상':'#159A6C','표본부족':'#8E9196','공급공백':'#C4C6C8'};
+  const pts=MAT.filter(c=>c.stores>0);
+  const traces={};
+  pts.forEach(c=>{
+    (traces[c.type]=traces[c.type]||{x:[],y:[],t:[]});
+    traces[c.type].x.push(c.stores);traces[c.type].y.push(c.usage);
+    traces[c.type].t.push(`${c.region}·${c.industry}<br>가맹점 ${c.stores} · 사용 ${c.usage.toLocaleString()}`);
+  });
+  const data=Object.entries(traces).map(([type,d])=>({
+    x:d.x,y:d.y,text:d.t,mode:'markers',type:'scatter',name:type,
+    marker:type==='표본부족'
+      ?{size:7,symbol:'circle-open',color:colors[type],opacity:.85,line:{width:1.2,color:colors[type]}}
+      :{size:9,color:colors[type]||'#999',opacity:.85,line:{width:1,color:'#fff'}},
+    hovertemplate:'%{text}<extra></extra>'
+  }));
+  // 진단 기준선: 가맹점당 사용량 q80(과부하)·q20(수요부진) — log-log에서 직선
+  const xmax=Math.max(...pts.map(c=>c.stores));
+  [[META.q80,'과부하 기준','#C13221'],[META.q20,'수요부진 기준','#3163C4']].forEach(([q,nm,col])=>{
+    data.push({x:[0.8,xmax*1.3],y:[0.8*q,xmax*1.3*q],mode:'lines',type:'scatter',
+      name:`${nm} ${q}건/곳`,line:{dash:'dot',color:col,width:1},hoverinfo:'skip'});
+  });
+  Plotly.newPlot('scatter',data,{
+    font:FONT,
+    margin:{l:60,r:10,t:10,b:50},
+    xaxis:{title:{text:'가맹점 수',font:{size:12}},type:'log',gridcolor:'#ECEDEF'},
+    yaxis:{title:{text:'사용 건수',font:{size:12}},type:'log',gridcolor:'#ECEDEF'},
+    legend:{orientation:'h',y:-0.18,font:{size:11}},
+    paper_bgcolor:'transparent',plot_bgcolor:'#FCFCFB'
+  },{displayModeBar:false,responsive:true});
+
+  document.getElementById('diagNote').innerHTML=
+    `<b>읽는 법</b> — 히트맵의 숫자는 가맹점 수, 색이 진할수록 가맹점당 사용량이 많습니다. `+
+    `▲ <b>과부하</b>(${MAT.filter(c=>c.type==='과부하').length}칸)는 가맹점당 사용량이 ${META.q80}건을 넘거나 소진(잔액 10만원 미만) 가맹점이 20% 이상인 칸, `+
+    `▽ <b>수요부진</b>(${MAT.filter(c=>c.type==='수요부진').length}칸)은 가맹점당 ${META.q20}건 미만이거나 미사용(만액) 가맹점이 20% 이상인 칸입니다. `+
+    `점(·)은 가맹점이 없는 <b>공급 공백</b> ${gap}칸입니다. `+
+    `산점도의 점선은 두 사용량 기준선입니다 — 잔액 조건으로 판정된 칸은 기준선 반대쪽에 있을 수 있습니다. `+
+    `업종 미분류 ${META.unclassified}곳은 집계에서 제외했습니다.`;
+}
+
+/* ── 탭3: 리밸런싱 — 가맹점 1,548곳 실제 재집계 (사용액 = 한도 400만 − 실측 잔액) */
+function buildTab3(){
+  const won=n=>(n/100000000).toFixed(2)+'억원';
+  const donors=M.filter(s=>s.amt<LOW);           // 소진·임박 90곳: 초과수요의 직접 증거
+  const idle=M.filter(s=>s.amt>=LIMIT);          // 만액 242곳: 수요를 받을 수 있는 곳
+  const idleBy={}; idle.forEach(s=>(idleBy[s.region]=idleBy[s.region]||[]).push(s));
+  // 지역별 활성(만액 아님) 가맹점 평균 사용액 = 만액 가맹점의 현실적 수용 상한
+  const meanUse={};
+  META.region_order.forEach(r=>{
+    const act=M.filter(s=>s.region===r&&s.amt<LIMIT);
+    meanUse[r]=act.length?act.reduce((a,s)=>a+(LIMIT-s.amt),0)/act.length:0;
+  });
+  const $rb=document.getElementById('rb'),$v=document.getElementById('rbVal');
+
+  function gini(arr){
+    const a=[...arr].sort((x,y)=>x-y),n=a.length,sum=a.reduce((s,v)=>s+v,0);
+    if(!sum)return 0;
+    let w=0;a.forEach((v,i)=>w+=(i+1)*v);
+    return (2*w)/(n*sum)-(n+1)/n;
+  }
+  const gBefore=gini(M.map(s=>LIMIT-s.amt));
+
+  function calc(pct){
+    const p=pct/100;
+    const use=new Map(M.map(s=>[s.id,LIMIT-s.amt]));
+    // ① 소진·임박 가맹점 사용액의 p%를 지역별 이전 재원으로 적립
+    const pool={};
+    donors.forEach(s=>{
+      const t=(LIMIT-s.amt)*p;
+      use.set(s.id,(LIMIT-s.amt)-t);
+      pool[s.region]=(pool[s.region]||0)+t;
+    });
+    // ② 같은 지역 만액 가맹점을 지역 평균 사용액까지 순차 배분
+    let activatedCnt=0,moved=0;
+    for(const [r,amt] of Object.entries(pool)){
+      let rest=amt;
+      for(const s of (idleBy[r]||[])){
+        if(rest<=0)break;
+        const take=Math.min(rest,meanUse[r]);
+        if(take>0){use.set(s.id,take);rest-=take;moved+=take;activatedCnt++;}
+      }
+    }
+    // ③ 전 가맹점 재집계
+    const lowAfter=M.reduce((a,s)=>a+((LIMIT-use.get(s.id))<LOW?1:0),0);
+    const avgAfter=donors.reduce((a,s)=>a+(LIMIT-use.get(s.id)),0)/donors.length;
+    return {lowBefore:donors.length,lowAfter,avgAfter,
+            fullBefore:idle.length,fullAfter:idle.length-activatedCnt,
+            activated:moved,gAfter:gini([...use.values()])};
+  }
+  const avgBefore=donors.reduce((a,s)=>a+s.amt,0)/donors.length;
+  const man=n=>(n/10000).toFixed(1)+'만원';
+  function upd(){
+    const pct=+$rb.value;$v.textContent=pct;
+    const c=calc(pct);
+    document.getElementById('rbAvgBefore').textContent=man(avgBefore);
+    document.getElementById('rbAvgAfter').textContent=man(c.avgAfter);
+    document.getElementById('rbLowDelta').textContent=
+      `잔액 10만원 미만 ${c.lowBefore} → ${c.lowAfter}곳`;
+    document.getElementById('rbFullBefore').textContent=c.fullBefore;
+    document.getElementById('rbFullAfter').textContent=c.fullAfter;
+    document.getElementById('rbFullDelta').textContent=pct?`−${c.fullBefore-c.fullAfter}곳 감소`:'';
+    document.getElementById('rbGiniBefore').textContent=gBefore.toFixed(3);
+    document.getElementById('rbGiniAfter').textContent=c.gAfter.toFixed(3);
+    document.getElementById('rbGiniDelta').textContent=pct?`−${(gBefore-c.gAfter).toFixed(3)} 완화`:'';
+    document.getElementById('rbAmt').textContent=won(c.activated);
+  }
+  $rb.oninput=upd;upd();
+}
+</script>
+</body>
+</html>
