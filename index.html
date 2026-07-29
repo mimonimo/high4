@@ -426,7 +426,7 @@ function buildMap(){
     const t=(r.per_store-pmin)/(pmax-pmin);
     const mk=L.circleMarker(pos,{
       radius:7+Math.sqrt(r.stores)*0.85,
-      color:'#17181A',weight:1,fillColor:ramp(t),fillOpacity:.55
+      color:'#17181A',weight:1,fillColor:ramp(t),fillOpacity:.35
     }).addTo(regions);
     mk.bindTooltip(`<b>${r.region}</b> 가맹점 ${r.stores}곳<br>사용 ${r.usage.toLocaleString()}건 · 가맹점당 ${r.per_store}건<br>`+
       `잔액 0원 ${r.zero} · 10만 미만 ${r.low} · 만액 ${r.full}곳`,{direction:'top',offset:[0,-6]});
@@ -438,7 +438,7 @@ function buildMap(){
       if(b&&b.getAttribute('aria-pressed')!=='true')b.click();
     });
   });
-  pins.addTo(map); regions.addTo(map);
+  regions.addTo(map); pins.addTo(map);   // 핀이 요약 원 위에 오도록
   L.control.layers(null,{['가맹점 핀 ('+M.length.toLocaleString()+'곳)']:pins,'지역 요약':regions},
     {collapsed:false,position:'topright'}).addTo(map);
   map.fitBounds(Object.values(REGION_POS),{padding:[34,34]});
