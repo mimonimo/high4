@@ -85,6 +85,10 @@
     text-shadow:0 0 3px #fff,0 0 3px #fff}
   .maplbl::before{display:none}
   #map{z-index:0}
+  .cd-row{display:flex;justify-content:space-between;gap:12px;padding:6px 2px;border-bottom:1px solid #EFEFF0;font-size:13px}
+  .cd-row:last-child{border-bottom:none}
+  .cd-row .cd-a{font-family:var(--mono);font-weight:600;white-space:nowrap}
+  .cd-row .cd-ad{color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:right}
   .amt-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
   .amt-l{font-size:11px;color:var(--muted)}
   .amt{font-family:var(--mono);font-size:14.5px;font-weight:600}
@@ -187,8 +191,21 @@
       <span><i class="sw" style="background:#3163C4"></i>▽ 수요부진 — 이용 저조, 촉진 필요</span>
       <span><i class="sw" style="background:#fff;border:1px dashed #9BA0A6;font-style:normal;font-size:11px;line-height:10px;text-align:center;color:#5F646B">·</i>공급공백(· 표시) — 가맹점 유치 필요</span>
       <span><i class="sw" style="background:#fff;border:1px solid #C9CCD0"></i>표본부족(3곳 미만) — 색 없이 숫자만</span>
+      <span style="color:var(--muted)">칸이나 점을 누르면 해당 가맹점 목록이 열립니다</span>
+    </div>
+    <div class="filters" style="margin-bottom:14px">
+      <div class="row">
+        <span class="lbl">지역</span><span id="diagChips" style="display:contents"></span>
+        <select id="dType" style="margin-left:auto"><option value="">진단 유형 전체</option></select>
+        <button class="chip" id="dReset">초기화</button>
+      </div>
     </div>
     <div class="chartbox"><div id="heatmap" style="height:440px"></div></div>
+    <div class="chartbox" id="cellBox" style="margin-top:14px;display:none">
+      <div id="cellHead" style="font-size:13.5px;font-weight:700"></div>
+      <p class="count" id="cellSub" style="margin:2px 0 8px"></p>
+      <div id="cellList"></div>
+    </div>
     <div class="chartbox" style="margin-top:14px"><div id="scatter" style="height:420px"></div></div>
     <div class="note" id="diagNote"></div>
     <div class="chartbox" style="margin-top:14px">
@@ -347,7 +364,7 @@ function buildTab1(){
         <div class="nm">${s.name}</div>
         <div class="ad">${s.addr}</div>
         <div class="tags"><span class="tag">${s.region}</span>${indTag}<a class="maplink" target="_blank" rel="noopener"
-          href="https://map.kakao.com/link/search/${mapq}">지도 검색 ↗</a></div>
+          href="https://map.naver.com/p/search/${mapq}">지도 검색 ↗</a></div>
         <div class="amt-top"><span class="amt-l">포인트 사용 가능</span><span class="amt">${won(s.amt)}</span></div>
         <div class="bar"><div class="fill ${t}" style="width:${pct}%"></div></div>
         ${t==='out'?'<div class="tape"><span>포인트 결제 불가</span></div>':`<div class="st ${t}">${label(s.amt)}</div>`}
@@ -356,6 +373,17 @@ function buildTab1(){
     }).join('')+(rows.length>180?`<div class="empty">외 ${rows.length-180}곳 — 검색으로 좁혀보세요.</div>`:'');
   };
   $q.oninput=render;$ind.onchange=render;$sort.onchange=render;render();
+
+  // 드릴다운에서 호출: 지역·업종을 세팅하고 조회 탭으로 이동
+  window.presetSearch=function(region,industry){
+    Object.entries(window._regionBtns).forEach(([r,b])=>b.setAttribute('aria-pressed',String(r===region)));
+    activeRegions=new Set(region?[region]:[]);
+    $ind.value=industry||'';
+    if($ind.value!==(industry||''))$ind.value='';
+    $q.value='';
+    render();
+    document.querySelector('.tab[data-p="p1"]').click();
+  };
 }
 
 /* ── 탭2: 진단 */
@@ -408,68 +436,130 @@ function buildTab2(){
   ].map(([k,v,u,cls])=>`<div class="kpi ${cls===1?'alert':cls===2?'idle':''}">
      <div class="k">${k}</div><div class="v">${v}<small>${u}</small></div></div>`).join('');
 
-  // 히트맵 z=가맹점당 사용량(로그), 공급공백/표본부족은 null
-  const z=R.map(r=>I.map(ind=>{
-    const c=MAT.find(x=>x.region===r&&x.industry===ind);
-    return c&&c.per_store!=null&&c.stores>=3?Math.log10(c.per_store+1):null;
-  }));
-  const txt=R.map(r=>I.map(ind=>{
-    const c=MAT.find(x=>x.region===r&&x.industry===ind);
-    if(!c||c.stores===0)return'·';
-    const mark=c.type==='과부하'?'▲':c.type==='수요부진'?'▽':'';
-    return `${c.stores}${mark}`;
-  }));
-  const hover=R.map(r=>I.map(ind=>{
-    const c=MAT.find(x=>x.region===r&&x.industry===ind);
-    if(!c)return'';
-    if(c.stores===0)return `${r} · ${ind}<br>가맹점 없음 (공급 공백)`;
-    return `${r} · ${ind}<br>가맹점 ${c.stores}곳 · 사용 ${c.usage.toLocaleString()}건`+
-           (c.per_store!=null?`<br>가맹점당 ${c.per_store}건 · ${c.type}`:`<br>${c.type}`);
-  }));
-  Plotly.newPlot('heatmap',[{
-    type:'heatmap',z,x:I,y:R,text:txt,texttemplate:'%{text}',textfont:{size:10,color:'#3A3E44'},
-    customdata:hover,hovertemplate:'%{customdata}<extra></extra>',
-    colorscale:[[0,'#EEF3F8'],[0.5,'#7FA6CB'],[1,'#1C4A74']],showscale:true,
-    colorbar:{title:{text:'가맹점당<br>사용량(log)',font:{size:10}},thickness:12,len:.7},
-    xgap:2,ygap:2
-  }],{
-    font:FONT,
-    margin:{l:60,r:10,t:10,b:110},
-    xaxis:{tickangle:-45,tickfont:{size:10.5},side:'bottom'},
-    yaxis:{tickfont:{size:12},autorange:'reversed'},
-    paper_bgcolor:'transparent',plot_bgcolor:'transparent'
-  },{displayModeBar:false,responsive:true});
+  // ── 필터 상태 + UI (지역 칩 · 진단 유형 · 초기화)
+  const dRegions=new Set();
+  const $dc=document.getElementById('diagChips'),$dt=document.getElementById('dType');
+  R.forEach(r=>{
+    const b=document.createElement('button');b.className='chip';b.textContent=r;b.setAttribute('aria-pressed','false');
+    b.onclick=()=>{const on=b.getAttribute('aria-pressed')==='true';b.setAttribute('aria-pressed',String(!on));
+      on?dRegions.delete(r):dRegions.add(r);drawDiag();};
+    $dc.appendChild(b);
+  });
+  ['과부하','수요부진','정상','표본부족','공급공백'].forEach(t=>{
+    const o=document.createElement('option');o.value=t;o.textContent=t;$dt.appendChild(o);
+  });
+  $dt.onchange=drawDiag;
+  document.getElementById('dReset').onclick=()=>{
+    dRegions.clear();
+    $dc.querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed','false'));
+    $dt.value='';
+    document.getElementById('cellBox').style.display='none';
+    drawDiag();
+  };
+  const cellMatch=c=>(dRegions.size===0||dRegions.has(c.region))&&(!$dt.value||c.type===$dt.value);
 
-  // 산점도: x=가맹점수, y=사용건수, 색=진단 (검증된 상태 팔레트)
+  // ── 드릴다운: 칸/점 클릭 → 해당 지역×업종 가맹점 목록
+  function showCell(region,industry){
+    const c=MAT.find(x=>x.region===region&&x.industry===industry);
+    if(!c)return;
+    const box=document.getElementById('cellBox');
+    box.style.display='block';
+    document.getElementById('cellHead').textContent=`${region} · ${industry} — ${c.type}`;
+    if(c.stores===0){
+      document.getElementById('cellSub').textContent=`가맹점 없음 · 이 업종 수요 ${c.usage.toLocaleString()}건이 다른 지역으로 흘러갑니다`;
+      document.getElementById('cellList').innerHTML='';
+      box.scrollIntoView({behavior:'smooth',block:'nearest'});
+      return;
+    }
+    document.getElementById('cellSub').innerHTML=
+      `가맹점 <b>${c.stores}</b>곳 · 사용 <b>${c.usage.toLocaleString()}</b>건`+
+      (c.per_store!=null?` · 가맹점당 <b>${c.per_store}</b>건`:'')+
+      ` · 소진 임박 ${c.low}곳 · 미사용 ${c.full}곳`;
+    const list=M.filter(s=>s.region===region&&s.industry===industry).sort((a,b)=>a.amt-b.amt);
+    const tierC=a=>a===0?'#8F1D12':a<LOW?'#C13221':a<=MID?'#B8860B':'#159A6C';
+    document.getElementById('cellList').innerHTML=
+      list.slice(0,12).map(s=>`<div class="cd-row"><span>${s.name}</span><span class="cd-ad">${s.addr}</span>`+
+        `<span class="cd-a" style="color:${tierC(s.amt)}">${s.amt.toLocaleString()}원</span></div>`).join('')+
+      `<div style="margin-top:10px"><button class="chip" onclick="presetSearch('${region}','${industry}')">`+
+      `조회 탭에서 ${c.stores}곳 모두 보기</button></div>`;
+    box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+
+  // ── 히트맵 + 산점도 (필터 반영해 다시 그림)
   const colors={'과부하':'#C13221','수요부진':'#3163C4','정상':'#159A6C','표본부족':'#8E9196','공급공백':'#C4C6C8'};
-  const pts=MAT.filter(c=>c.stores>0);
-  const traces={};
-  pts.forEach(c=>{
-    (traces[c.type]=traces[c.type]||{x:[],y:[],t:[]});
-    traces[c.type].x.push(c.stores);traces[c.type].y.push(c.usage);
-    traces[c.type].t.push(`${c.region}·${c.industry}<br>가맹점 ${c.stores} · 사용 ${c.usage.toLocaleString()}`);
-  });
-  const data=Object.entries(traces).map(([type,d])=>({
-    x:d.x,y:d.y,text:d.t,mode:'markers',type:'scatter',name:type,
-    marker:type==='표본부족'
-      ?{size:7,symbol:'circle-open',color:colors[type],opacity:.85,line:{width:1.2,color:colors[type]}}
-      :{size:9,color:colors[type]||'#999',opacity:.85,line:{width:1,color:'#fff'}},
-    hovertemplate:'%{text}<extra></extra>'
-  }));
-  // 진단 기준선: 가맹점당 사용량 q80(과부하)·q20(수요부진) — log-log에서 직선
-  const xmax=Math.max(...pts.map(c=>c.stores));
-  [[META.q80,'과부하 기준','#C13221'],[META.q20,'수요부진 기준','#3163C4']].forEach(([q,nm,col])=>{
-    data.push({x:[0.8,xmax*1.3],y:[0.8*q,xmax*1.3*q],mode:'lines',type:'scatter',
-      name:`${nm} ${q}건/곳`,line:{dash:'dot',color:col,width:1},hoverinfo:'skip'});
-  });
-  Plotly.newPlot('scatter',data,{
-    font:FONT,
-    margin:{l:60,r:10,t:10,b:50},
-    xaxis:{title:{text:'가맹점 수',font:{size:12}},type:'log',gridcolor:'#ECEDEF'},
-    yaxis:{title:{text:'사용 건수',font:{size:12}},type:'log',gridcolor:'#ECEDEF'},
-    legend:{orientation:'h',y:-0.18,font:{size:11}},
-    paper_bgcolor:'transparent',plot_bgcolor:'#FCFCFB'
-  },{displayModeBar:false,responsive:true});
+  function drawDiag(){
+    const rows=R.filter(r=>dRegions.size===0||dRegions.has(r));
+    const cell=(r,ind)=>MAT.find(x=>x.region===r&&x.industry===ind);
+    const z=rows.map(r=>I.map(ind=>{
+      const c=cell(r,ind);
+      return c&&cellMatch(c)&&c.per_store!=null&&c.stores>=3?Math.log10(c.per_store+1):null;
+    }));
+    const txt=rows.map(r=>I.map(ind=>{
+      const c=cell(r,ind);
+      if(!c||!cellMatch(c))return'';
+      if(c.stores===0)return'·';
+      const mark=c.type==='과부하'?'▲':c.type==='수요부진'?'▽':'';
+      return `${c.stores}${mark}`;
+    }));
+    const hover=rows.map(r=>I.map(ind=>{
+      const c=cell(r,ind);
+      if(!c||!cellMatch(c))return'';
+      if(c.stores===0)return `${r} · ${ind}<br>가맹점 없음 (공급 공백)`;
+      return `${r} · ${ind}<br>가맹점 ${c.stores}곳 · 사용 ${c.usage.toLocaleString()}건`+
+             (c.per_store!=null?`<br>가맹점당 ${c.per_store}건 · ${c.type}`:`<br>${c.type}`);
+    }));
+    Plotly.newPlot('heatmap',[{
+      type:'heatmap',z,x:I,y:rows,text:txt,texttemplate:'%{text}',textfont:{size:10,color:'#3A3E44'},
+      customdata:hover,hovertemplate:'%{customdata}<extra></extra>',
+      colorscale:[[0,'#EEF3F8'],[0.5,'#7FA6CB'],[1,'#1C4A74']],showscale:true,
+      colorbar:{title:{text:'가맹점당<br>사용량(log)',font:{size:10}},thickness:12,len:.7},
+      xgap:2,ygap:2
+    }],{
+      font:FONT,
+      margin:{l:60,r:10,t:10,b:110},
+      xaxis:{tickangle:-45,tickfont:{size:10.5},side:'bottom'},
+      yaxis:{tickfont:{size:12},autorange:'reversed'},
+      paper_bgcolor:'transparent',plot_bgcolor:'transparent'
+    },{displayModeBar:false,responsive:true});
+
+    const pts=MAT.filter(c=>c.stores>0&&cellMatch(c));
+    const traces={};
+    pts.forEach(c=>{
+      (traces[c.type]=traces[c.type]||{x:[],y:[],t:[],cd:[]});
+      traces[c.type].x.push(c.stores);traces[c.type].y.push(c.usage);
+      traces[c.type].cd.push([c.region,c.industry]);
+      traces[c.type].t.push(`${c.region}·${c.industry}<br>가맹점 ${c.stores} · 사용 ${c.usage.toLocaleString()}`);
+    });
+    const data=Object.entries(traces).map(([type,d])=>({
+      x:d.x,y:d.y,text:d.t,customdata:d.cd,mode:'markers',type:'scatter',name:type,
+      marker:type==='표본부족'
+        ?{size:7,symbol:'circle-open',color:colors[type],opacity:.85,line:{width:1.2,color:colors[type]}}
+        :{size:9,color:colors[type]||'#999',opacity:.85,line:{width:1,color:'#fff'}},
+      hovertemplate:'%{text}<extra></extra>'
+    }));
+    // 진단 기준선: 가맹점당 사용량 q80(과부하)·q20(수요부진) — log-log에서 직선
+    const xmax=Math.max(...MAT.filter(c=>c.stores>0).map(c=>c.stores));
+    [[META.q80,'과부하 기준','#C13221'],[META.q20,'수요부진 기준','#3163C4']].forEach(([q,nm,col])=>{
+      data.push({x:[0.8,xmax*1.3],y:[0.8*q,xmax*1.3*q],mode:'lines',type:'scatter',
+        name:`${nm} ${q}건/곳`,line:{dash:'dot',color:col,width:1},hoverinfo:'skip'});
+    });
+    Plotly.newPlot('scatter',data,{
+      font:FONT,
+      margin:{l:60,r:10,t:10,b:50},
+      xaxis:{title:{text:'가맹점 수',font:{size:12}},type:'log',gridcolor:'#ECEDEF'},
+      yaxis:{title:{text:'사용 건수',font:{size:12}},type:'log',gridcolor:'#ECEDEF'},
+      legend:{orientation:'h',y:-0.18,font:{size:11}},
+      paper_bgcolor:'transparent',plot_bgcolor:'#FCFCFB'
+    },{displayModeBar:false,responsive:true});
+
+    // 클릭 → 드릴다운 (newPlot마다 리스너 재부착)
+    const hm=document.getElementById('heatmap'),sc=document.getElementById('scatter');
+    if(hm.removeAllListeners)hm.removeAllListeners('plotly_click');
+    if(hm.on)hm.on('plotly_click',ev=>{const p=ev.points&&ev.points[0];if(p)showCell(p.y,p.x);});
+    if(sc.removeAllListeners)sc.removeAllListeners('plotly_click');
+    if(sc.on)sc.on('plotly_click',ev=>{const p=ev.points&&ev.points[0];if(p&&p.customdata)showCell(p.customdata[0],p.customdata[1]);});
+  }
+  drawDiag();
 
   document.getElementById('diagNote').innerHTML=
     `<b>읽는 법</b> — 히트맵의 숫자는 가맹점 수, 색이 진할수록 가맹점당 사용량이 많습니다. `+
