@@ -362,12 +362,17 @@ function buildTab1(){
       const t=tier(s.amt),pct=s.amt===0?0:Math.max(2,Math.min(100,s.amt/LIMIT*100));
       const rec=findAlt(s);
       const indTag=s.industry==='미분류'?'<span class="tag un">업종 미분류</span>':`<span class="tag ai">${s.industry} · AI</span>`;
-      const mapq=encodeURIComponent(`${s.name} ${s.region}`);
+      // 좌표 확정 가맹점은 검색 대신 정확한 위치로 바로 연다 (미등록·폐업 매장도 위치 표시됨)
+      const exactPos=s.geo!=='approx'&&s.lat!=null;
+      const mlink=exactPos
+        ?`https://map.kakao.com/link/map/${encodeURIComponent(s.name)},${s.lat},${s.lng}`
+        :`https://map.kakao.com/link/search/${encodeURIComponent(s.name+' '+s.region)}`;
+      const mtxt=exactPos?'지도 보기 ↗':'지도 검색 ↗';
       return `<article class="mc ${t}">
         <div class="nm">${s.name}</div>
         <div class="ad">${s.addr}</div>
         <div class="tags"><span class="tag">${s.region}</span>${indTag}<a class="maplink" target="_blank" rel="noopener"
-          href="https://map.kakao.com/link/search/${mapq}">지도 검색 ↗</a></div>
+          href="${mlink}">${mtxt}</a></div>
         <div class="amt-top"><span class="amt-l">포인트 사용 가능</span><span class="amt">${won(s.amt)}</span></div>
         <div class="bar"><div class="fill ${t}" style="width:${pct}%"></div></div>
         ${t==='out'?'<div class="tape"><span>포인트 결제 불가</span></div>':`<div class="st ${t}">${label(s.amt)}</div>`}
