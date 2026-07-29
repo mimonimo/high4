@@ -41,4 +41,5 @@
 - 리밸런싱은 정책 효과 시뮬레이션(실제 포인트 제도 변경은 강원랜드 권한)
 
 ## 기술 스택
-순수 HTML/CSS/JS + Plotly.js(CDN). 빌드 불필요, GitHub Pages 직접 배포.
+순수 HTML/CSS/JS + Plotly.js(CDN) + 카카오맵 JS SDK(로드 실패 시 Leaflet/OpenStreetMap 자동 폴백). 빌드 불필요, GitHub Pages 직접 배포.
+※ 페이지의 카카오맵 JavaScript 키는 도메인 제한이 걸린 공개용 키로, REST 인증키가 아니며 등록된 도메인 외에서는 동작하지 않음.
