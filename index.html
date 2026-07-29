@@ -367,7 +367,7 @@ function buildTab1(){
         <div class="nm">${s.name}</div>
         <div class="ad">${s.addr}</div>
         <div class="tags"><span class="tag">${s.region}</span>${indTag}<a class="maplink" target="_blank" rel="noopener"
-          href="https://map.naver.com/p/search/${mapq}">지도 검색 ↗</a></div>
+          href="https://map.kakao.com/link/search/${mapq}">지도 검색 ↗</a></div>
         <div class="amt-top"><span class="amt-l">포인트 사용 가능</span><span class="amt">${won(s.amt)}</span></div>
         <div class="bar"><div class="fill ${t}" style="width:${pct}%"></div></div>
         ${t==='out'?'<div class="tape"><span>포인트 결제 불가</span></div>':`<div class="st ${t}">${label(s.amt)}</div>`}
