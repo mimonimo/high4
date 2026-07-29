@@ -13,8 +13,17 @@
   integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
-<!-- 카카오맵 SDK: JavaScript 키는 도메인 제한된 공개용 키(REST 키 아님). 동적 서비스 스크립트라 SRI 적용 대상 아님. 로드 실패 시 Leaflet/OSM 폴백 -->
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=9f51931db12a7e37d96d460ef48be984&autoload=false"></script>
+<!-- 카카오맵 SDK: JavaScript 키는 도메인 제한된 공개용 키(REST 키 아님). 동적 서비스 스크립트라 SRI 적용 대상 아님. 로드 실패 시 Leaflet/OSM 폴백.
+     배포용/로컬용 앱 키가 분리되어 있어 접속 호스트에 따라 선택 -->
+<script>
+(function(){
+  var h=location.hostname;
+  var key=(h==='localhost'||h==='127.0.0.1')
+    ?'fa3ad464b85de676db06884861a8e2cb'   // 로컬 개발용 (localhost:8000 도메인 등록)
+    :'9f51931db12a7e37d96d460ef48be984';  // 배포용 (mimonimo.github.io 도메인 등록)
+  document.write('<scr'+'ipt src="https://dapi.kakao.com/v2/maps/sdk.js?appkey='+key+'&autoload=false"></scr'+'ipt>');
+})();
+</script>
 <style>
   :root{
     --coal:#17181A; --ink:#1A1C1F; --bg:#ECEDEF; --card:#FFFFFF; --line:#D8DADD;
