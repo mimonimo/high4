@@ -191,6 +191,13 @@
     <div class="chartbox"><div id="heatmap" style="height:440px"></div></div>
     <div class="chartbox" style="margin-top:14px"><div id="scatter" style="height:420px"></div></div>
     <div class="note" id="diagNote"></div>
+    <div class="chartbox" style="margin-top:14px">
+      <div style="display:flex;gap:18px;flex-wrap:wrap">
+        <div style="flex:2 1 300px"><div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">2025년 월별 사용 건수</div><div id="tsMonth" style="height:150px"></div></div>
+        <div style="flex:1 1 200px"><div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">요일별 일평균</div><div id="tsWday" style="height:150px"></div></div>
+      </div>
+      <p class="count" id="tsNote" style="margin:8px 0 0 2px"></p>
+    </div>
   </section>
 
   <!-- 탭3 -->
@@ -244,13 +251,14 @@ const REGION_POS={
   '사북읍':[37.2399,128.8267],'고한읍':[37.2040,128.8516],'정선군':[37.3796,128.6618],
   '태백시':[37.1638,128.9857],'영월군':[37.1835,128.4620],'삼척시':[37.4499,129.1653]
 };
-let M=[], MAT=[], META={};
+let M=[], MAT=[], META={}, USAGE={};
 
 Promise.all([
   fetch('data/merchants.json').then(r=>r.json()),
   fetch('data/matrix.json').then(r=>r.json()),
   fetch('data/meta.json').then(r=>r.json()),
-]).then(([m,mat,meta])=>{ M=m; MAT=mat; META=meta; init(); })
+  fetch('data/usage.json').then(r=>r.json()),
+]).then(([m,mat,meta,usage])=>{ M=m; MAT=mat; META=meta; USAGE=usage; init(); })
  .catch(e=>{ document.getElementById('grid').innerHTML='<div class="empty">데이터를 불러오지 못했습니다. data/ 폴더의 JSON을 확인하세요.</div>'; console.error(e); });
 
 function init(){ buildTab1(); buildTab2(); buildTab3(); wireTabs(); }
@@ -263,6 +271,7 @@ function wireTabs(){
     t.setAttribute('aria-selected','true');
     document.getElementById(t.dataset.p).classList.add('on');
     if(t.dataset.p==='p2'){ Plotly.Plots.resize('heatmap'); Plotly.Plots.resize('scatter');
+      Plotly.Plots.resize('tsMonth'); Plotly.Plots.resize('tsWday');
       if(window._map){ window._map.invalidateSize();
         if(!window._mapFit){ window._mapFit=true;
           window._map.fitBounds(Object.values(REGION_POS),{padding:[34,34]}); } } }
@@ -385,6 +394,7 @@ function buildMap(){
 function buildTab2(){
   const R=META.region_order, I=META.inds;
   buildMap();
+  buildTS();
   // KPI
   const zero=META.regions.reduce((a,r)=>a+r.zero,0);
   const full=MAT.reduce((a,c)=>a+c.full,0);
@@ -468,6 +478,29 @@ function buildTab2(){
     `점(·)은 가맹점이 없는 <b>공급 공백</b> ${gap}칸입니다. `+
     `산점도의 점선은 두 사용량 기준선입니다 — 잔액 조건으로 판정된 칸은 기준선 반대쪽에 있을 수 있습니다. `+
     `업종 미분류 ${META.unclassified}곳은 집계에서 제외했습니다.`;
+}
+
+/* ── 탭2 하단: 시계열 미니 차트 — 수요의 시간 안정성(위치 문제라는 전제의 근거) */
+function buildTS(){
+  const base={displayModeBar:false,responsive:true};
+  const lay={font:FONT,margin:{l:44,r:6,t:4,b:22},paper_bgcolor:'transparent',plot_bgcolor:'transparent',
+    yaxis:{gridcolor:'#ECEDEF',tickfont:{size:10}},xaxis:{tickfont:{size:10}},bargap:.35};
+  Plotly.newPlot('tsMonth',[{
+    type:'bar',x:USAGE.monthly.map(o=>o.m+'월'),y:USAGE.monthly.map(o=>o.n),
+    marker:{color:'#7FA6CB'},hovertemplate:'%{x} %{y:,}건<extra></extra>'
+  }],{...lay,yaxis:{...lay.yaxis,rangemode:'tozero'}},base);
+  Plotly.newPlot('tsWday',[{
+    type:'bar',x:USAGE.weekday.map(o=>o.d),y:USAGE.weekday.map(o=>o.avg),
+    marker:{color:USAGE.weekday.map(o=>o.d==='토'?'#1C4A74':'#7FA6CB')},
+    hovertemplate:'%{x}요일 평균 %{y:,}건<extra></extra>'
+  }],{...lay,yaxis:{...lay.yaxis,rangemode:'tozero'}},base);
+  const mv=USAGE.monthly.map(o=>o.n), ratio=(Math.max(...mv)/Math.min(...mv)).toFixed(2);
+  const sat=USAGE.weekday.find(o=>o.d==='토').avg;
+  const wk=USAGE.weekday.filter(o=>'월화수목금'.includes(o.d));
+  const satPct=Math.round((sat/(wk.reduce((a,o)=>a+o.avg,0)/wk.length)-1)*100);
+  document.getElementById('tsNote').innerHTML=
+    `연간 ${USAGE.total.toLocaleString()}건 · 월 편차 <b>${ratio}배</b>로 연중 평탄, 토요일은 평일 평균 대비 <b>+${satPct}%</b> — `+
+    `수요가 시기와 무관하게 꾸준하므로, 소진·미사용은 시기가 아니라 공급 위치의 문제입니다.`;
 }
 
 /* ── 탭3: 리밸런싱 — 가맹점 1,548곳 실제 재집계 (사용액 = 한도 400만 − 실측 잔액) */
