@@ -184,8 +184,10 @@
   <section class="panel" id="p2">
     <div class="kpis" id="kpis"></div>
     <div class="chartbox" style="margin-bottom:6px"><div id="map" style="height:360px"></div></div>
-    <p class="count" style="margin:6px 0 16px 2px">원 크기 = 가맹점 수 · 색이 진할수록 가맹점당 사용량이 많음 · 원을 누르면 해당 지역 가맹점 조회로 이동 ·
-      원 위치는 읍·시 행정 중심(OpenStreetMap 기준)이며 개별 가맹점 위치가 아닙니다</p>
+    <p class="count" style="margin:6px 0 16px 2px">
+      핀 = 개별 가맹점 위치(주소 지오코딩 · 확대해서 골목 단위 확인 가능) — <b style="color:#8F1D12">소진(0원)</b> ·
+      <b style="color:#C13221">임박(10만 미만)</b> · <b style="color:#3163C4">미사용(만액)</b> · 회색 일반 / 옅은 핀은 위치 근사.
+      큰 원 = 지역 요약(크기 가맹점 수 · 진할수록 가맹점당 사용량 많음 · 위치는 읍·시 행정 중심) — 누르면 해당 지역 조회로 이동</p>
     <div class="legend">
       <span><i class="sw" style="background:#C13221"></i>▲ 과부하 — 수요 몰림, 분산 필요</span>
       <span><i class="sw" style="background:#3163C4"></i>▽ 수요부진 — 이용 저조, 촉진 필요</span>
@@ -395,7 +397,20 @@ function buildMap(){
   const map=L.map('map',{scrollWheelZoom:false,attributionControl:true});
   window._map=map;
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {maxZoom:14,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+    {maxZoom:18,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+  // 가맹점 핀: 지오코딩 좌표(카카오 로컬, 로컬 1회) + 잔액 상태색
+  const pinC=s=>s.amt===0?'#8F1D12':s.amt<LOW?'#C13221':s.amt>=LIMIT?'#3163C4':'#9BA0A6';
+  const pins=L.layerGroup();
+  M.forEach(s=>{
+    if(s.lat==null)return;
+    L.circleMarker([s.lat,s.lng],{radius:3.2,color:'#fff',weight:.6,
+      fillColor:pinC(s.amt),fillOpacity:s.geo==='approx'?.4:.85})
+     .bindTooltip(`<b>${s.name}</b><br>${s.industry} · ${s.amt.toLocaleString()}원`+
+       (s.geo==='approx'?'<br>위치 근사(주소 미확정)':s.geo==='poi'?'<br>위치: 상호 검색 기준':''))
+     .addTo(pins);
+  });
+  // 지역 요약 원
+  const regions=L.layerGroup();
   const ps=META.regions.map(r=>r.per_store);
   const pmin=Math.min(...ps),pmax=Math.max(...ps);
   const lerp=(a,b,t)=>Math.round(a+(b-a)*t);
@@ -405,18 +420,21 @@ function buildMap(){
     const t=(r.per_store-pmin)/(pmax-pmin);
     const mk=L.circleMarker(pos,{
       radius:7+Math.sqrt(r.stores)*0.85,
-      color:'#17181A',weight:1,fillColor:ramp(t),fillOpacity:.78
-    }).addTo(map);
+      color:'#17181A',weight:1,fillColor:ramp(t),fillOpacity:.55
+    }).addTo(regions);
     mk.bindTooltip(`<b>${r.region}</b> 가맹점 ${r.stores}곳<br>사용 ${r.usage.toLocaleString()}건 · 가맹점당 ${r.per_store}건<br>`+
       `잔액 0원 ${r.zero} · 10만 미만 ${r.low} · 만액 ${r.full}곳`,{direction:'top',offset:[0,-6]});
     L.tooltip({permanent:true,direction:'bottom',offset:[0,6],className:'maplbl'})
-      .setLatLng(pos).setContent(r.region).addTo(map);
+      .setLatLng(pos).setContent(r.region).addTo(regions);
     mk.on('click',()=>{
       document.querySelector('.tab[data-p="p1"]').click();
       const b=window._regionBtns&&window._regionBtns[r.region];
       if(b&&b.getAttribute('aria-pressed')!=='true')b.click();
     });
   });
+  pins.addTo(map); regions.addTo(map);
+  L.control.layers(null,{['가맹점 핀 ('+M.length.toLocaleString()+'곳)']:pins,'지역 요약':regions},
+    {collapsed:false,position:'topright'}).addTo(map);
   map.fitBounds(Object.values(REGION_POS),{padding:[34,34]});
 }
 function buildTab2(){
