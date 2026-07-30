@@ -182,7 +182,7 @@
         <input type="search" id="q" placeholder="가맹점명·주소 검색 (예: 국수, 태백)" aria-label="검색">
         <select id="ind"><option value="">업종 전체</option></select>
         <select id="sort">
-          <option value="amt-asc">잔여한도 적은순 (소진 임박)</option>
+          <option value="amt-asc">소진 임박순 (결제 불가 0원은 맨 뒤)</option>
           <option value="amt-desc">잔여한도 많은순</option>
           <option value="name">가나다순</option>
         </select>
@@ -202,6 +202,7 @@
         <span class="lbl">지도 레이어</span>
         <button class="chip" id="lyPins" aria-pressed="true">가맹점 핀</button>
         <button class="chip" id="lyRegions" aria-pressed="true">지역 요약</button>
+        <button class="chip" id="lyLock" style="display:none" aria-pressed="false">지도 조작 켜기</button>
       </div>
       <div id="map" style="height:380px"></div>
     </div>
@@ -375,7 +376,13 @@ function buildTab1(){
       (!$ind.value||s.industry===$ind.value)&&
       (activeRegions.size===0||activeRegions.has(s.region)));
     const by=$sort.value;
-    rows.sort((a,b)=>by==='amt-desc'?b.amt-a.amt:by==='name'?a.name.localeCompare(b.name,'ko'):a.amt-b.amt);
+    rows.sort((a,b)=>{
+      if(by==='amt-desc')return b.amt-a.amt;
+      if(by==='name')return a.name.localeCompare(b.name,'ko');
+      // 임박순: 이미 결제 불가(0원)는 맨 뒤로 — "아직 쓸 수 있는 곳" 우선
+      if((a.amt===0)!==(b.amt===0))return a.amt===0?1:-1;
+      return a.amt-b.amt;
+    });
     const out=rows.filter(s=>s.amt===0).length;
     const low=rows.filter(s=>s.amt>0&&s.amt<LOW).length;
     $count.innerHTML=`<b>${rows.length.toLocaleString()}</b>곳`+
@@ -427,6 +434,19 @@ function buildMap(){
       if(window._layers)(i===0?window._layers.pins:window._layers.regions)(!on);
     };
   });
+  // 모바일: 지도 조작 기본 잠금(페이지 스크롤 우선) + 토글로 해제
+  const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
+  window._mapCoarse=coarse;
+  const lk=document.getElementById('lyLock');
+  if(coarse){
+    lk.style.display='';
+    lk.onclick=()=>{
+      const on=lk.getAttribute('aria-pressed')==='true';
+      lk.setAttribute('aria-pressed',String(!on));
+      lk.textContent=on?'지도 조작 켜기':'지도 조작 끄기';
+      if(window._mapCtl)window._mapCtl.unlock(!on);
+    };
+  }
   if(window.kakao&&kakao.maps&&kakao.maps.load){ kakao.maps.load(buildKakaoMap); }
   else buildLeafletMap();
 }
@@ -435,6 +455,10 @@ function buildKakaoMap(){
   const map=new kakao.maps.Map(document.getElementById('map'),
     {center:new kakao.maps.LatLng(37.28,128.8),level:11});
   window._kmap=map;
+  map.setZoomable(false);                       // 휠이 페이지 스크롤을 가로채지 않게 — 줌은 +/- 버튼
+  map.addControl(new kakao.maps.ZoomControl(),kakao.maps.ControlPosition.RIGHT);
+  if(window._mapCoarse)map.setDraggable(false); // 모바일 기본 잠금
+  window._mapCtl={unlock:on=>{map.setDraggable(on);map.setZoomable(on);}};
   const bounds=new kakao.maps.LatLngBounds();
   Object.values(REGION_POS).forEach(p=>bounds.extend(new kakao.maps.LatLng(p[0],p[1])));
   window._kbounds=bounds;
@@ -499,6 +523,8 @@ function buildLeafletMap(){
   }
   const map=L.map('map',{scrollWheelZoom:false,attributionControl:true});
   window._map=map;
+  if(window._mapCoarse){map.dragging.disable();map.touchZoom.disable();}
+  window._mapCtl={unlock:on=>{['dragging','touchZoom'].forEach(k=>on?map[k].enable():map[k].disable());}};
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     {maxZoom:18,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
   // 가맹점 핀: 지오코딩 좌표(카카오 로컬, 로컬 1회) + 잔액 상태색
