@@ -351,7 +351,8 @@ function buildTab1(){
   META.region_order.forEach(r=>{
     const b=document.createElement('button');b.className='chip';b.textContent=r;b.setAttribute('aria-pressed','false');
     b.onclick=()=>{const on=b.getAttribute('aria-pressed')==='true';b.setAttribute('aria-pressed',String(!on));
-      on?activeRegions.delete(r):activeRegions.add(r);render();};
+      on?activeRegions.delete(r):activeRegions.add(r);render();
+      if(window._fitRegions)window._fitRegions(activeRegions);};
     window._regionBtns[r]=b;
     $rc.appendChild(b);
   });
@@ -558,6 +559,13 @@ function buildKakaoMap(){
   };
   window._recolor=()=>{for(const id in pinById){const p=pinById[id];p.mk.setImage(dot(pinColor(p.s)));}};
   window._zoomBy=d=>map.setLevel(map.getLevel()+d);
+  window._fitRegions=set=>{                    // 지역 칩 선택 → 해당 지역(들)로 확대
+    if(!set||set.size===0){map.setBounds(window._kbounds,32);return;}
+    const b=new kakao.maps.LatLngBounds();
+    set.forEach(r=>{const rb=regionBounds[r];
+      if(rb){b.extend(rb.getSouthWest());b.extend(rb.getNorthEast());}});
+    if(!b.isEmpty())map.setBounds(b,24);
+  };
   // 조회 탭 카드에서 호출: 해당 가맹점으로 확대 + 팝업
   window._focusPin=id=>{
     const p=pinById[id]; if(!p)return;
@@ -637,6 +645,11 @@ function buildLeafletMap(){
     map.setView(p.mk.getLatLng(),16); p.mk.openPopup();
   };
   window._regionZoom=r=>{ if(regionPts[r])map.fitBounds(regionPts[r],{padding:[24,24]}); };
+  window._fitRegions=set=>{
+    if(!set||set.size===0){map.fitBounds(Object.values(REGION_POS),{padding:[34,34]});return;}
+    let pts=[]; set.forEach(r=>{if(regionPts[r])pts=pts.concat(regionPts[r]);});
+    if(pts.length)map.fitBounds(pts,{padding:[24,24]});
+  };
   // 지역 요약 원
   const regions=L.layerGroup();
   const ps=META.regions.map(r=>r.per_store);
