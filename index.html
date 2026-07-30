@@ -216,6 +216,8 @@
         <button class="chip" id="lyPins" aria-pressed="true">가맹점 핀</button>
         <button class="chip" id="lyRegions" aria-pressed="true">지역 요약</button>
         <button class="chip" id="lyColor" aria-pressed="false">핀 색: 업종별</button>
+        <button class="chip" id="lyReset">전체 보기</button>
+        <button class="chip" id="lySync" aria-pressed="true">목록–지도 연동</button>
         <button class="chip" id="lyLock" style="display:none" aria-pressed="false">지도 조작 켜기</button>
       </div>
       <div style="position:relative">
@@ -224,7 +226,7 @@
       </div>
     </div>
     <p class="count" style="margin:6px 0 14px 2px">
-      지도에는 검색·필터 결과만 표시됩니다 —
+      지도와 목록은 연동됩니다 — 지도를 움직이면 화면 범위의 가맹점만 목록에, 필터를 걸면 해당 핀만 지도에.
       <span id="capAmt"><b style="color:#8F1D12">소진(0원)</b> ·
       <b style="color:#C13221">임박(10만 미만)</b> · <b style="color:#3163C4">미사용(만액)</b> · 회색 일반 / 옅은 핀은 위치 근사.</span>
       <span id="capInd" style="display:none"></span>
@@ -400,11 +402,14 @@ function buildTab1(){
   window.render=function(){
     const q=$q.value.trim().toLowerCase();
     const exOn=$ex.getAttribute('aria-pressed')==='true';
+    const inView=(window._viewFilterOn&&window._viewTest)?window._viewTest():null;
     let rows=M.filter(s=>
       (!exOn||s.amt>0)&&
       (!q||s.name.toLowerCase().includes(q)||s.addr.toLowerCase().includes(q))&&
       (!$ind.value||s.industry===$ind.value)&&
       (activeRegions.size===0||activeRegions.has(s.region)));
+    if(window._syncPins)window._syncPins(rows);   // 지도 핀은 검색·필터만 반영
+    if(inView)rows=rows.filter(inView);           // 목록은 지도 화면 범위까지 반영
     const by=$sort.value;
     rows.sort((a,b)=>{
       if(by==='amt-desc')return b.amt-a.amt;
@@ -427,7 +432,7 @@ function buildTab1(){
       const mlink=exactPos?'#':`https://map.kakao.com/link/search/${encodeURIComponent(s.name+' '+s.region)}`;
       const mattr=exactPos?`href="#" onclick="return focusOnMap(${s.id})"`:`href="${mlink}" target="_blank" rel="noopener"`;
       const mtxt=exactPos?'지도에서 보기':'지도 검색 ↗';
-      return `<article class="mc ${t}">
+      return `<article class="mc ${t}" data-id="${s.id}">
         <div class="nm">${s.name}</div>
         <div class="ad">${s.addr}</div>
         <div class="tags"><span class="tag">${s.region}</span>${indTag}<a class="maplink" ${mattr}>${mtxt}</a></div>
@@ -437,9 +442,13 @@ function buildTab1(){
         ${rec?`<div class="alt">대신 이용 가능${rec.near?` · ${rec.near}`:''} · <b>${rec.alt.name}</b> (${won(rec.alt.amt)})</div>`:''}
       </article>`;
     }).join('')+(rows.length>180?`<div class="empty">외 ${rows.length-180}곳 — 검색으로 좁혀보세요.</div>`:'');
-    if(window._syncPins)window._syncPins(rows);
   };
   $q.oninput=render;$ind.onchange=render;$sort.onchange=render;render();
+  // 카드 호버 → 지도 핀 강조
+  $grid.addEventListener('mouseover',e=>{const a=e.target.closest&&e.target.closest('.mc');
+    if(a&&a.dataset.id&&window._hlPin)window._hlPin(+a.dataset.id,true);});
+  $grid.addEventListener('mouseout',e=>{const a=e.target.closest&&e.target.closest('.mc');
+    if(a&&a.dataset.id&&window._hlPin)window._hlPin(+a.dataset.id,false);});
   buildMap();
 
   // 드릴다운에서 호출: 지역·업종을 세팅하고 조회 탭으로 이동
@@ -522,6 +531,18 @@ function buildMap(){
     }
   },{passive:false});
   wrap.addEventListener('dblclick',()=>{if(window._zoomBy)window._zoomBy(-1);}); // 더블클릭 확대
+  document.getElementById('lyReset').onclick=()=>{
+    if(window._resetView)window._resetView();
+    if(window._closePop)window._closePop();
+  };
+  window._viewFilterOn=true;
+  const sy=document.getElementById('lySync');
+  sy.onclick=()=>{
+    const on=sy.getAttribute('aria-pressed')==='true';
+    sy.setAttribute('aria-pressed',String(!on));
+    window._viewFilterOn=!on;
+    if(window.render)render();
+  };
   ['lyPins','lyRegions'].forEach((id,i)=>{
     const b=document.getElementById(id);
     b.onclick=()=>{
@@ -558,12 +579,13 @@ function buildKakaoMap(){
   const bounds=new kakao.maps.LatLngBounds();
   Object.values(REGION_POS).forEach(p=>bounds.extend(new kakao.maps.LatLng(p[0],p[1])));
   window._kbounds=bounds;
-  // 가맹점 핀: SVG 마커 (색은 pinColor — 잔액 상태/업종 모드)
+  // 가맹점 핀: SVG 마커 (색은 pinColor — 잔액 상태/업종 모드, 크기는 줌 연동)
   const imgs={};
-  const dot=c=>imgs[c]||(imgs[c]=new kakao.maps.MarkerImage(
+  let curPx=9;
+  const dot=(c,px)=>imgs[c+px]||(imgs[c+px]=new kakao.maps.MarkerImage(
     'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11"><circle cx="5.5" cy="5.5" r="4.2" fill="'+c+'" stroke="white" stroke-width="1.2"/></svg>'),
-    new kakao.maps.Size(11,11),{offset:new kakao.maps.Point(5.5,5.5)}));
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}"><circle cx="${px/2}" cy="${px/2}" r="${(px*0.38).toFixed(1)}" fill="${c}" stroke="white" stroke-width="1.2"/></svg>`),
+    new kakao.maps.Size(px,px),{offset:new kakao.maps.Point(px/2,px/2)}));
   // 커스텀 팝업 (기본 InfoWindow 대체): 빈 곳 클릭·× 로 닫힘, 열릴 때 중앙으로 팬
   const pop=new kakao.maps.CustomOverlay({yAnchor:1.08,zIndex:6,clickable:true});
   window._closePop=()=>pop.setMap(null);
@@ -580,7 +602,7 @@ function buildKakaoMap(){
     if(s.geo!=='approx')
       (regionBounds[s.region]=regionBounds[s.region]||new kakao.maps.LatLngBounds()).extend(pos);
     const mk=new kakao.maps.Marker({position:pos,
-      image:dot(pinColor(s)),opacity:s.geo==='approx'?.45:1,title:`${s.name} · ${s.amt.toLocaleString()}원`});
+      image:dot(pinColor(s),curPx),opacity:s.geo==='approx'?.45:1,title:`${s.name} · ${s.amt.toLocaleString()}원`});
     kakao.maps.event.addListener(mk,'click',()=>openPop(s));
     mk.setMap(map); pins.push(mk); pinById[s.id]={mk,s};
   });
@@ -593,8 +615,14 @@ function buildKakaoMap(){
     }
     visSet=ns;
   };
-  window._recolor=()=>{for(const id in pinById){const p=pinById[id];p.mk.setImage(dot(pinColor(p.s)));}};
+  window._recolor=()=>{for(const id in pinById){const p=pinById[id];p.mk.setImage(dot(pinColor(p.s),curPx));}};
   window._zoomBy=d=>map.setLevel(map.getLevel()+d,{animate:true});
+  window._hlPin=(id,on)=>{const p=pinById[id];if(!p)return;               // 카드 호버 → 핀 강조
+    p.mk.setImage(dot(pinColor(p.s),on?curPx+6:curPx));p.mk.setZIndex(on?9:0);};
+  window._viewTest=()=>{const b=map.getBounds();                          // 지도 범위 → 목록 필터
+    return s=>b.contain(new kakao.maps.LatLng(s.lat,s.lng));};
+  kakao.maps.event.addListener(map,'idle',()=>{
+    if(window._viewFilterOn&&window.render)render();});
   window._fitRegions=set=>{                    // 지역 칩 선택 → 해당 지역(들)로 확대
     if(!set||set.size===0){map.setBounds(window._kbounds,32);return;}
     const b=new kakao.maps.LatLngBounds();
@@ -636,9 +664,18 @@ function buildKakaoMap(){
       content:`<div class="maplbl-k">${r.region}</div>`});
     c.setMap(map); lbl.setMap(map); regs.push(c,lbl);
   });
+  // 줌 연동: 확대하면 지역 요약 자동 숨김 + 핀 크기 확대 (상용 지도 방식)
+  let regionsOn=true;
+  const applyRegions=()=>{const show=regionsOn&&map.getLevel()>=9;regs.forEach(o=>o.setMap(show?map:null));};
+  const pinPx=()=>{const l=map.getLevel();return l<=4?16:l<=6?13:l<=8?11:9;};
+  const applyPinSize=()=>{const px=pinPx();if(px===curPx)return;curPx=px;
+    for(const id in pinById){const p=pinById[id];p.mk.setImage(dot(pinColor(p.s),curPx));}};
+  kakao.maps.event.addListener(map,'zoom_changed',()=>{applyRegions();applyPinSize();});
   window._layers={pins:on=>{pinsOn=on;for(const id in pinById)pinById[id].mk.setMap(on&&visSet.has(+id)?map:null);},
-                  regions:on=>regs.forEach(o=>o.setMap(on?map:null))};
+                  regions:on=>{regionsOn=on;applyRegions();}};
+  window._resetView=()=>map.setBounds(window._kbounds,32);
   map.setBounds(bounds,32);
+  applyRegions();
 }
 
 function buildLeafletMap(){
@@ -705,8 +742,16 @@ function buildLeafletMap(){
     mk.on('click',()=>window._regionZoom(r.region));
   });
   regions.addTo(map); pins.addTo(map);   // 핀이 요약 원 위에 오도록
+  let regionsOn=true;
+  const applyRegions=()=>{const show=regionsOn&&map.getZoom()<=10;
+    show?map.addLayer(regions):map.removeLayer(regions);};
+  map.on('zoomend',applyRegions);
+  map.on('moveend',()=>{if(window._viewFilterOn&&window.render)render();});
   window._layers={pins:on=>on?map.addLayer(pins):map.removeLayer(pins),
-                  regions:on=>on?map.addLayer(regions):map.removeLayer(regions)};
+                  regions:on=>{regionsOn=on;applyRegions();}};
+  window._resetView=()=>map.fitBounds(Object.values(REGION_POS),{padding:[34,34]});
+  window._viewTest=()=>{const b=map.getBounds();return s=>b.contains([s.lat,s.lng]);};
+  window._hlPin=(id,on)=>{const p=pinById[id];if(p)p.mk.setStyle({radius:on?6.5:3.2});};
   map.fitBounds(Object.values(REGION_POS),{padding:[34,34]});
 }
 function buildTab2(){
