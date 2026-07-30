@@ -285,6 +285,17 @@
         <div class="big" id="rbAmt"></div>
         <div class="d" id="rbAmtHint">만액 가맹점에 배분되는 사용액</div></div>
     </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px">
+      <div class="chartbox" style="flex:1.4 1 320px">
+        <div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">가맹점 잔액 분포 —
+          <b style="color:#9BA0A6">이전 전</b> vs <b style="color:#1C4A74">이전 후</b> (슬라이더 연동)</div>
+        <div id="rbHist" style="height:235px"></div>
+      </div>
+      <div class="chartbox" style="flex:1 1 280px">
+        <div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">사용액 로렌츠 곡선 — 균등선에 가까울수록 쏠림 완화</div>
+        <div id="rbLorenz" style="height:235px"></div>
+      </div>
+    </div>
     <div class="note">
       소진·임박 가맹점은 이미 한도의 97% 이상을 쓴 상태라, 수요의 3%만 분산돼도 잔액 10만원 이상을 회복합니다.
       실제 포인트 발급 제도 변경은 강원랜드의 권한이므로, 본 화면은 <b>정책 효과를 미리 보는 시뮬레이터</b>입니다.
@@ -334,6 +345,7 @@ function wireTabs(){
     if(t.dataset.p==='p1'){
       if(window._kmap)window._kmap.relayout();
       else if(window._map)window._map.invalidateSize(); }
+    if(t.dataset.p==='p3'){ Plotly.Plots.resize('rbHist'); Plotly.Plots.resize('rbLorenz'); }
   });
 }
 
@@ -925,10 +937,44 @@ function buildTab3(){
     const avgAfter=donors.reduce((a,s)=>a+(LIMIT-use.get(s.id)),0)/donors.length;
     return {lowBefore:donors.length,lowAfter,avgAfter,
             fullBefore:idle.length,fullAfter:idle.length-activatedCnt,
-            activated:moved,gAfter:gini([...use.values()])};
+            activated:moved,gAfter:gini([...use.values()]),use};
   }
   const avgBefore=donors.reduce((a,s)=>a+s.amt,0)/donors.length;
   const man=n=>(n/10000).toFixed(1)+'만원';
+
+  // ── 시각화: 잔액 분포 히스토그램 + 로렌츠 곡선 (실측 재계산 결과를 그대로 그림)
+  const BINS=[[0,1,'0원'],[1,1e5,'~10만'],[1e5,5e5,'~50만'],[5e5,1e6,'~100만'],
+              [1e6,2e6,'~200만'],[2e6,3e6,'~300만'],[3e6,LIMIT,'~400만'],[LIMIT,Infinity,'만액']];
+  const binCount=rem=>BINS.map(([lo,hi])=>rem.reduce((a,v)=>a+(v>=lo&&v<hi?1:0),0));
+  const lorenz=arr=>{                     // 사용액 누적 곡선 (100포인트로 압축)
+    const a=[...arr].sort((x,y)=>x-y),n=a.length,sum=a.reduce((s,v)=>s+v,0)||1;
+    const xs=[0],ys=[0];let cum=0;
+    for(let i=0;i<n;i++){cum+=a[i];if(i%Math.ceil(n/100)===0||i===n-1){xs.push((i+1)/n);ys.push(cum/sum);}}
+    return {xs,ys};
+  };
+  const remBefore=M.map(s=>s.amt);
+  const histBefore=binCount(remBefore);
+  const lzBefore=lorenz(M.map(s=>LIMIT-s.amt));
+  const simLay={font:FONT,margin:{l:44,r:8,t:6,b:26},paper_bgcolor:'transparent',plot_bgcolor:'transparent',
+    showlegend:false,yaxis:{gridcolor:'#ECEDEF',tickfont:{size:10}},xaxis:{tickfont:{size:10}}};
+  function drawSim(c){
+    const remAfter=M.map(s=>LIMIT-c.use.get(s.id));
+    Plotly.react('rbHist',[
+      {type:'bar',name:'이전 전',x:BINS.map(b=>b[2]),y:histBefore,marker:{color:'#B9BDC2'},
+       hovertemplate:'%{x}: %{y}곳 (이전 전)<extra></extra>'},
+      {type:'bar',name:'이전 후',x:BINS.map(b=>b[2]),y:binCount(remAfter),marker:{color:'#1C4A74'},
+       hovertemplate:'%{x}: %{y}곳 (이전 후)<extra></extra>'}
+    ],{...simLay,barmode:'group',bargap:.25},{displayModeBar:false,responsive:true});
+    const lz=lorenz([...c.use.values()]);
+    Plotly.react('rbLorenz',[
+      {x:[0,1],y:[0,1],mode:'lines',name:'균등선',line:{dash:'dot',color:'#9BA0A6',width:1},hoverinfo:'skip'},
+      {x:lzBefore.xs,y:lzBefore.ys,mode:'lines',name:'이전 전',line:{color:'#B9BDC2',width:2},hoverinfo:'skip'},
+      {x:lz.xs,y:lz.ys,mode:'lines',name:'이전 후',line:{color:'#1C4A74',width:2},hoverinfo:'skip'}
+    ],{...simLay,xaxis:{...simLay.xaxis,title:{text:'가맹점 누적 비율',font:{size:10.5}},range:[0,1]},
+       yaxis:{...simLay.yaxis,title:{text:'사용액 누적 비율',font:{size:10.5}},range:[0,1]}},
+      {displayModeBar:false,responsive:true});
+  }
+
   function upd(){
     const pct=+$rb.value;$v.textContent=pct;
     const c=calc(pct);
@@ -943,6 +989,7 @@ function buildTab3(){
     document.getElementById('rbGiniAfter').textContent=c.gAfter.toFixed(3);
     document.getElementById('rbGiniDelta').textContent=pct?`−${(gBefore-c.gAfter).toFixed(3)} 완화`:'';
     document.getElementById('rbAmt').textContent=won(c.activated);
+    drawSim(c);
   }
   $rb.oninput=upd;upd();
 }
