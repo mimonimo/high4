@@ -51,7 +51,7 @@
   .tab[aria-selected=true]{background:var(--safety);color:var(--coal)}
   .tab:focus-visible{outline-color:var(--safety)}
 
-  main{padding:28px 0 56px}
+  main{padding:38px 0 56px}
   .panel{display:none}
   .panel.on{display:block}
 
@@ -98,6 +98,10 @@
   .maplbl-k{font-weight:700;font-size:11.5px;color:#17181A;text-shadow:0 0 3px #fff,0 0 3px #fff}
   .mapstat{background:#fff;border:1px solid #C9CCD0;padding:7px 10px;font-size:11.5px;line-height:1.6;
     box-shadow:0 1px 4px rgba(0,0,0,.15);white-space:nowrap}
+  .wheelhint{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(23,24,26,.85);
+    color:#fff;font-size:12px;padding:6px 13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}
+  .wheelhint.on{opacity:1}
+  #capInd b{display:inline-block;width:10px;height:10px;margin:0 3px 0 8px;vertical-align:-1px}
   #map{z-index:0}
   .cd-row{display:flex;justify-content:space-between;gap:12px;padding:6px 2px;border-bottom:1px solid #EFEFF0;font-size:13px}
   .cd-row:last-child{border-bottom:none}
@@ -190,6 +194,25 @@
       </div>
       <div class="row" id="regionChips"><span class="lbl">지역</span></div>
     </div>
+    <div class="chartbox" style="margin-bottom:6px">
+      <div class="row" style="margin-bottom:8px">
+        <span class="lbl">지도 레이어</span>
+        <button class="chip" id="lyPins" aria-pressed="true">가맹점 핀</button>
+        <button class="chip" id="lyRegions" aria-pressed="true">지역 요약</button>
+        <button class="chip" id="lyColor" aria-pressed="false">핀 색: 업종별</button>
+        <button class="chip" id="lyLock" style="display:none" aria-pressed="false">지도 조작 켜기</button>
+      </div>
+      <div style="position:relative">
+        <div id="map" style="height:380px"></div>
+        <div class="wheelhint" id="wheelHint">Ctrl + 휠 (⌘ + 휠)로 확대 · 축소</div>
+      </div>
+    </div>
+    <p class="count" style="margin:6px 0 14px 2px">
+      지도에는 검색·필터 결과만 표시됩니다 —
+      <span id="capAmt"><b style="color:#8F1D12">소진(0원)</b> ·
+      <b style="color:#C13221">임박(10만 미만)</b> · <b style="color:#3163C4">미사용(만액)</b> · 회색 일반 / 옅은 핀은 위치 근사.</span>
+      <span id="capInd" style="display:none"></span>
+      큰 원은 지역 요약(호버 시 통계 · 클릭하면 그 지역으로 확대)</p>
     <p class="count" id="count"></p>
     <div class="grid" id="grid"></div>
   </section>
@@ -197,19 +220,6 @@
   <!-- 탭2 -->
   <section class="panel" id="p2">
     <div class="kpis" id="kpis"></div>
-    <div class="chartbox" style="margin-bottom:6px">
-      <div class="row" style="margin-bottom:8px">
-        <span class="lbl">지도 레이어</span>
-        <button class="chip" id="lyPins" aria-pressed="true">가맹점 핀</button>
-        <button class="chip" id="lyRegions" aria-pressed="true">지역 요약</button>
-        <button class="chip" id="lyLock" style="display:none" aria-pressed="false">지도 조작 켜기</button>
-      </div>
-      <div id="map" style="height:380px"></div>
-    </div>
-    <p class="count" style="margin:6px 0 16px 2px">
-      핀 = 개별 가맹점 위치(주소 지오코딩 · 확대해서 골목 단위 확인 가능) — <b style="color:#8F1D12">소진(0원)</b> ·
-      <b style="color:#C13221">임박(10만 미만)</b> · <b style="color:#3163C4">미사용(만액)</b> · 회색 일반 / 옅은 핀은 위치 근사.
-      큰 원 = 지역 요약(크기 가맹점 수 · 진할수록 가맹점당 사용량 많음 · 위치는 읍·시 행정 중심) — 누르면 해당 지역 조회로 이동</p>
     <div class="legend">
       <span><i class="sw" style="background:#C13221"></i>▲ 과부하 — 수요 몰림, 분산 필요</span>
       <span><i class="sw" style="background:#3163C4"></i>▽ 수요부진 — 이용 저조, 촉진 필요</span>
@@ -313,12 +323,10 @@ function wireTabs(){
     t.setAttribute('aria-selected','true');
     document.getElementById(t.dataset.p).classList.add('on');
     if(t.dataset.p==='p2'){ Plotly.Plots.resize('heatmap'); Plotly.Plots.resize('scatter');
-      Plotly.Plots.resize('tsMonth'); Plotly.Plots.resize('tsWday'); Plotly.Plots.resize('tsYear');
-      if(window._kmap){ window._kmap.relayout();
-        if(!window._mapFit){ window._mapFit=true; window._kmap.setBounds(window._kbounds,32); } }
-      else if(window._map){ window._map.invalidateSize();
-        if(!window._mapFit){ window._mapFit=true;
-          window._map.fitBounds(Object.values(REGION_POS),{padding:[34,34]}); } } }
+      Plotly.Plots.resize('tsMonth'); Plotly.Plots.resize('tsWday'); Plotly.Plots.resize('tsYear'); }
+    if(t.dataset.p==='p1'){
+      if(window._kmap)window._kmap.relayout();
+      else if(window._map)window._map.invalidateSize(); }
   });
 }
 
@@ -392,25 +400,25 @@ function buildTab1(){
       const t=tier(s.amt),pct=s.amt===0?0:Math.max(2,Math.min(100,s.amt/LIMIT*100));
       const rec=findAlt(s);
       const indTag=s.industry==='미분류'?'<span class="tag un">업종 미분류</span>':`<span class="tag ai">${s.industry} · AI</span>`;
-      // 좌표 확정 가맹점은 검색 대신 정확한 위치로 바로 연다 (미등록·폐업 매장도 위치 표시됨)
+      // 좌표 확정 가맹점은 내부 지도(진단 탭)에서 위치+팝업으로, 근사 2곳만 외부 검색
       const exactPos=s.geo!=='approx'&&s.lat!=null;
-      const mlink=exactPos
-        ?`https://map.kakao.com/link/map/${encodeURIComponent(s.name)},${s.lat},${s.lng}`
-        :`https://map.kakao.com/link/search/${encodeURIComponent(s.name+' '+s.region)}`;
-      const mtxt=exactPos?'지도 보기 ↗':'지도 검색 ↗';
+      const mlink=exactPos?'#':`https://map.kakao.com/link/search/${encodeURIComponent(s.name+' '+s.region)}`;
+      const mattr=exactPos?`href="#" onclick="return focusOnMap(${s.id})"`:`href="${mlink}" target="_blank" rel="noopener"`;
+      const mtxt=exactPos?'지도에서 보기':'지도 검색 ↗';
       return `<article class="mc ${t}">
         <div class="nm">${s.name}</div>
         <div class="ad">${s.addr}</div>
-        <div class="tags"><span class="tag">${s.region}</span>${indTag}<a class="maplink" target="_blank" rel="noopener"
-          href="${mlink}">${mtxt}</a></div>
+        <div class="tags"><span class="tag">${s.region}</span>${indTag}<a class="maplink" ${mattr}>${mtxt}</a></div>
         <div class="amt-top"><span class="amt-l">포인트 사용 가능</span><span class="amt">${won(s.amt)}</span></div>
         <div class="bar"><div class="fill ${t}" style="width:${pct}%"></div></div>
         ${t==='out'?'<div class="tape"><span>포인트 결제 불가</span></div>':`<div class="st ${t}">${label(s.amt)}</div>`}
         ${rec?`<div class="alt">대신 이용 가능${rec.near?` · ${rec.near}`:''} · <b>${rec.alt.name}</b> (${won(rec.alt.amt)})</div>`:''}
       </article>`;
     }).join('')+(rows.length>180?`<div class="empty">외 ${rows.length-180}곳 — 검색으로 좁혀보세요.</div>`:'');
+    if(window._syncPins)window._syncPins(rows);
   };
   $q.oninput=render;$ind.onchange=render;$sort.onchange=render;render();
+  buildMap();
 
   // 드릴다운에서 호출: 지역·업종을 세팅하고 조회 탭으로 이동
   window.presetSearch=function(region,industry){
@@ -425,7 +433,66 @@ function buildTab1(){
 }
 
 /* ── 탭2: 진단 — 지도 (카카오맵 우선, 실패 시 Leaflet/OSM 폴백) */
+function popupHtml(s){
+  const t=s.amt===0?['#8F1D12','소진 — 결제 불가']:s.amt<LOW?['#C13221','소진 임박']
+         :s.amt<=MID?['#B8860B','사용 가능']:['#159A6C','여유 있음'];
+  const pct=s.amt===0?0:Math.max(2,Math.min(100,s.amt/LIMIT*100));
+  return `<div style="padding:8px 11px;font-size:12px;line-height:1.55;min-width:215px;font-family:'IBM Plex Sans KR',sans-serif">
+    <b style="font-size:13px">${s.name}</b><br>
+    <span style="color:#5F646B">${s.industry} · ${s.region}</span><br>
+    <span style="color:#888;font-size:11px">${s.addr}</span>
+    <div style="margin:7px 0 3px;display:flex;justify-content:space-between;align-items:baseline">
+      <span style="color:#5F646B;font-size:11px">잔여한도</span>
+      <b style="font-family:'IBM Plex Mono',monospace">${s.amt.toLocaleString()}원</b></div>
+    <div style="height:6px;background:#E7E8EA"><div style="height:6px;width:${pct}%;background:${t[0]}"></div></div>
+    <div style="color:${t[0]};font-weight:700;margin-top:4px">${t[1]}${s.geo==='approx'?' · 위치 근사':''}</div>
+    <div style="margin-top:8px;display:flex;gap:12px">
+      <a href="https://map.kakao.com/link/map/${encodeURIComponent(s.name)},${s.lat},${s.lng}" target="_blank" rel="noopener"
+         style="font-size:11.5px;color:#3163C4;font-weight:600">카카오맵 ↗</a>
+      <a href="#" onclick="return presetFromMap('${s.region}','${s.industry}')"
+         style="font-size:11.5px;color:#3163C4;font-weight:600">이 지역·업종 조회</a>
+    </div></div>`;
+}
+window.presetFromMap=function(r,i){window.presetSearch(r,i);return false;};
+window.focusOnMap=function(id){
+  if(window._focusPin)window._focusPin(id);
+  document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});
+  return false;
+};
+// 핀 색: 잔액 상태(기본) 또는 업종별(검증된 7색 + 그 외 회색)
+const INDC={'일반음식점업':'#C13221','식품판매업':'#2E9BC4','소매업':'#B87A0A','슈퍼마켓':'#24549E',
+            '숙박업':'#159A6C','이ㆍ미용업':'#C4519A','커피전문점':'#5E3D9E'};
+window._pinMode='amt';
+function pinColor(s){
+  if(window._pinMode==='ind')return INDC[s.industry]||'#9BA0A6';
+  return s.amt===0?'#8F1D12':s.amt<LOW?'#C13221':s.amt>=LIMIT?'#3163C4':'#9BA0A6';
+}
 function buildMap(){
+  // 색 모드 토글 + 업종 범례
+  document.getElementById('capInd').innerHTML=
+    Object.entries(INDC).map(([k,v])=>`<b style="background:${v}"></b>${k}`).join('')+
+    '<b style="background:#9BA0A6"></b>그 외/미분류.';
+  const bc=document.getElementById('lyColor');
+  bc.onclick=()=>{
+    const on=bc.getAttribute('aria-pressed')==='true';
+    bc.setAttribute('aria-pressed',String(!on));
+    window._pinMode=on?'amt':'ind';
+    bc.textContent=on?'핀 색: 업종별':'핀 색: 잔액 상태';
+    document.getElementById('capAmt').style.display=on?'':'none';
+    document.getElementById('capInd').style.display=on?'none':'';
+    if(window._recolor)window._recolor();
+  };
+  // Ctrl/⌘+휠 줌 (트랙패드 핀치 포함) — 일반 휠은 페이지 스크롤 유지
+  const wrap=document.getElementById('map').parentNode;
+  const wh=document.getElementById('wheelHint');let whT;
+  wrap.addEventListener('wheel',e=>{
+    if(e.ctrlKey||e.metaKey){
+      e.preventDefault();
+      if(window._zoomBy)window._zoomBy(e.deltaY>0?1:-1);
+    }else{
+      wh.classList.add('on');clearTimeout(whT);whT=setTimeout(()=>wh.classList.remove('on'),900);
+    }
+  },{passive:false});
   ['lyPins','lyRegions'].forEach((id,i)=>{
     const b=document.getElementById(id);
     b.onclick=()=>{
@@ -462,26 +529,42 @@ function buildKakaoMap(){
   const bounds=new kakao.maps.LatLngBounds();
   Object.values(REGION_POS).forEach(p=>bounds.extend(new kakao.maps.LatLng(p[0],p[1])));
   window._kbounds=bounds;
-  // 가맹점 핀: 잔액 상태색 SVG 마커
-  const pinC=s=>s.amt===0?'#8F1D12':s.amt<LOW?'#C13221':s.amt>=LIMIT?'#3163C4':'#9BA0A6';
+  // 가맹점 핀: SVG 마커 (색은 pinColor — 잔액 상태/업종 모드)
   const imgs={};
   const dot=c=>imgs[c]||(imgs[c]=new kakao.maps.MarkerImage(
     'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11"><circle cx="5.5" cy="5.5" r="4.2" fill="'+c+'" stroke="white" stroke-width="1.2"/></svg>'),
     new kakao.maps.Size(11,11),{offset:new kakao.maps.Point(5.5,5.5)}));
   const iw=new kakao.maps.InfoWindow({removable:true});
-  const pins=[];
+  const pins=[],pinById={},regionBounds={};
   M.forEach(s=>{
     if(s.lat==null)return;
-    const mk=new kakao.maps.Marker({position:new kakao.maps.LatLng(s.lat,s.lng),
-      image:dot(pinC(s.amt)),opacity:s.geo==='approx'?.45:1,title:`${s.name} · ${s.amt.toLocaleString()}원`});
-    kakao.maps.event.addListener(mk,'click',()=>{
-      iw.setContent(`<div style="padding:6px 10px;font-size:12px;line-height:1.5"><b>${s.name}</b><br>`+
-        `${s.industry} · ${s.amt.toLocaleString()}원${s.geo==='approx'?'<br>위치 근사':''}</div>`);
-      iw.open(map,mk);
-    });
-    mk.setMap(map); pins.push(mk);
+    const pos=new kakao.maps.LatLng(s.lat,s.lng);
+    if(s.geo!=='approx')
+      (regionBounds[s.region]=regionBounds[s.region]||new kakao.maps.LatLngBounds()).extend(pos);
+    const mk=new kakao.maps.Marker({position:pos,
+      image:dot(pinColor(s)),opacity:s.geo==='approx'?.45:1,title:`${s.name} · ${s.amt.toLocaleString()}원`});
+    kakao.maps.event.addListener(mk,'click',()=>{iw.setContent(popupHtml(s));iw.open(map,mk);});
+    mk.setMap(map); pins.push(mk); pinById[s.id]={mk,s};
   });
+  let pinsOn=true, visSet=new Set(M.filter(s=>s.lat!=null).map(s=>s.id));
+  window._syncPins=rows=>{                    // 조회 필터 결과와 지도 동기화 (변경분만 갱신)
+    const ns=new Set(rows.map(s=>s.id));
+    if(pinsOn)for(const id in pinById){
+      const i=+id,show=ns.has(i);
+      if(show!==visSet.has(i))pinById[id].mk.setMap(show?map:null);
+    }
+    visSet=ns;
+  };
+  window._recolor=()=>{for(const id in pinById){const p=pinById[id];p.mk.setImage(dot(pinColor(p.s)));}};
+  window._zoomBy=d=>map.setLevel(map.getLevel()+d);
+  // 조회 탭 카드에서 호출: 해당 가맹점으로 확대 + 팝업
+  window._focusPin=id=>{
+    const p=pinById[id]; if(!p)return;
+    map.setLevel(4);
+    map.panTo(new kakao.maps.LatLng(p.s.lat,p.s.lng));
+    iw.setContent(popupHtml(p.s)); iw.open(map,p.mk);
+  };
   // 지역 요약 원 + 라벨 + 통계 호버
   const ps=META.regions.map(r=>r.per_store);
   const pmin=Math.min(...ps),pmax=Math.max(...ps);
@@ -496,14 +579,13 @@ function buildKakaoMap(){
     const c=new kakao.maps.Circle({center:ll,radius:500+Math.sqrt(r.stores)*55,
       strokeWeight:1,strokeColor:'#17181A',strokeOpacity:.8,fillColor:ramp(t),fillOpacity:.3});
     kakao.maps.event.addListener(c,'click',()=>{
-      document.querySelector('.tab[data-p="p1"]').click();
-      const b=window._regionBtns&&window._regionBtns[r.region];
-      if(b&&b.getAttribute('aria-pressed')!=='true')b.click();
+      if(regionBounds[r.region])map.setBounds(regionBounds[r.region],24);
     });
     kakao.maps.event.addListener(c,'mouseover',()=>{
       hover.setContent(`<div class="mapstat"><b>${r.region}</b> 가맹점 ${r.stores}곳<br>`+
         `사용 ${r.usage.toLocaleString()}건 · 가맹점당 ${r.per_store}건<br>`+
-        `잔액 0원 ${r.zero} · 10만 미만 ${r.low} · 만액 ${r.full}곳</div>`);
+        `잔액 0원 ${r.zero} · 10만 미만 ${r.low} · 만액 ${r.full}곳<br>`+
+        `<span style="color:#888">클릭하면 이 지역으로 확대</span></div>`);
       hover.setPosition(ll); hover.setMap(map);
     });
     kakao.maps.event.addListener(c,'mouseout',()=>hover.setMap(null));
@@ -511,7 +593,7 @@ function buildKakaoMap(){
       content:`<div class="maplbl-k">${r.region}</div>`});
     c.setMap(map); lbl.setMap(map); regs.push(c,lbl);
   });
-  window._layers={pins:on=>pins.forEach(p=>p.setMap(on?map:null)),
+  window._layers={pins:on=>{pinsOn=on;for(const id in pinById)pinById[id].mk.setMap(on&&visSet.has(+id)?map:null);},
                   regions:on=>regs.forEach(o=>o.setMap(on?map:null))};
   map.setBounds(bounds,32);
 }
@@ -528,16 +610,33 @@ function buildLeafletMap(){
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     {maxZoom:18,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
   // 가맹점 핀: 지오코딩 좌표(카카오 로컬, 로컬 1회) + 잔액 상태색
-  const pinC=s=>s.amt===0?'#8F1D12':s.amt<LOW?'#C13221':s.amt>=LIMIT?'#3163C4':'#9BA0A6';
   const pins=L.layerGroup();
+  const pinById={},regionPts={};
   M.forEach(s=>{
     if(s.lat==null)return;
-    L.circleMarker([s.lat,s.lng],{radius:3.2,color:'#fff',weight:.6,
-      fillColor:pinC(s.amt),fillOpacity:s.geo==='approx'?.4:.85})
-     .bindTooltip(`<b>${s.name}</b><br>${s.industry} · ${s.amt.toLocaleString()}원`+
-       (s.geo==='approx'?'<br>위치 근사(주소 미확정)':s.geo==='poi'?'<br>위치: 상호 검색 기준':''))
+    if(s.geo!=='approx')(regionPts[s.region]=regionPts[s.region]||[]).push([s.lat,s.lng]);
+    const mk=L.circleMarker([s.lat,s.lng],{radius:3.2,color:'#fff',weight:.6,
+      fillColor:pinColor(s),fillOpacity:s.geo==='approx'?.4:.85})
+     .bindPopup(popupHtml(s))
      .addTo(pins);
+    pinById[s.id]={mk,s};
   });
+  let visSet=new Set(M.filter(s=>s.lat!=null).map(s=>s.id));
+  window._syncPins=rows=>{
+    const ns=new Set(rows.map(s=>s.id));
+    for(const id in pinById){
+      const i=+id,show=ns.has(i);
+      if(show!==visSet.has(i))show?pins.addLayer(pinById[id].mk):pins.removeLayer(pinById[id].mk);
+    }
+    visSet=ns;
+  };
+  window._recolor=()=>{for(const id in pinById){const p=pinById[id];p.mk.setStyle({fillColor:pinColor(p.s)});}};
+  window._zoomBy=d=>d>0?map.zoomOut():map.zoomIn();
+  window._focusPin=id=>{
+    const p=pinById[id]; if(!p)return;
+    map.setView(p.mk.getLatLng(),16); p.mk.openPopup();
+  };
+  window._regionZoom=r=>{ if(regionPts[r])map.fitBounds(regionPts[r],{padding:[24,24]}); };
   // 지역 요약 원
   const regions=L.layerGroup();
   const ps=META.regions.map(r=>r.per_store);
@@ -555,11 +654,7 @@ function buildLeafletMap(){
       `잔액 0원 ${r.zero} · 10만 미만 ${r.low} · 만액 ${r.full}곳`,{direction:'top',offset:[0,-6]});
     L.tooltip({permanent:true,direction:'bottom',offset:[0,6],className:'maplbl'})
       .setLatLng(pos).setContent(r.region).addTo(regions);
-    mk.on('click',()=>{
-      document.querySelector('.tab[data-p="p1"]').click();
-      const b=window._regionBtns&&window._regionBtns[r.region];
-      if(b&&b.getAttribute('aria-pressed')!=='true')b.click();
-    });
+    mk.on('click',()=>window._regionZoom(r.region));
   });
   regions.addTo(map); pins.addTo(map);   // 핀이 요약 원 위에 오도록
   window._layers={pins:on=>on?map.addLayer(pins):map.removeLayer(pins),
@@ -568,7 +663,6 @@ function buildLeafletMap(){
 }
 function buildTab2(){
   const R=META.region_order, I=META.inds;
-  buildMap();
   buildTS();
   // KPI
   const zero=META.regions.reduce((a,r)=>a+r.zero,0);
