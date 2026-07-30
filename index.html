@@ -161,6 +161,11 @@
   .rb-card .d{font-size:13px;font-weight:700;margin-top:5px}
   .rb-card .d.good{color:var(--ok)}
   .rb-arrow{color:var(--muted);font-weight:400;font-size:18px}
+  .wfl-h{margin:11px 0 4px;font-size:12px}
+  .wfl-h b{margin-right:6px}
+  .wfl-h span{color:var(--muted);font-variant-numeric:tabular-nums}
+  .wfl{display:flex;flex-wrap:wrap;gap:2px}
+  .wfl i{width:8px;height:8px;display:block;background:#C9CCD0}
 
   footer{border-top:1px solid var(--line);padding:18px 0 30px;font-size:11.5px;color:var(--muted);line-height:1.7}
 
@@ -285,16 +290,13 @@
         <div class="big" id="rbAmt"></div>
         <div class="d" id="rbAmtHint">만액 가맹점에 배분되는 사용액</div></div>
     </div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px">
-      <div class="chartbox" style="flex:1.4 1 320px;min-width:0;overflow:hidden">
-        <div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">가맹점 잔액 분포 —
-          <b style="color:#9BA0A6">이전 전</b> vs <b style="color:#1C4A74">이전 후</b> (슬라이더 연동)</div>
-        <div id="rbHist" style="height:235px"></div>
-      </div>
-      <div class="chartbox" style="flex:1 1 280px;min-width:0;overflow:hidden">
-        <div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">사용액 로렌츠 곡선 — 균등선에 가까울수록 쏠림 완화</div>
-        <div id="rbLorenz" style="height:235px"></div>
-      </div>
+    <div class="chartbox" style="margin-top:14px">
+      <div class="k" style="font-size:12.5px;color:var(--muted);margin:2px 0 2px">
+        가맹점 1,548곳의 상태 변화 — <b>점 하나가 가맹점 1곳</b>입니다 (지역별, 잔액 적은 순 · 슬라이더 연동)</div>
+      <div id="rbWaffle"></div>
+      <p class="count" style="margin:12px 0 0">
+        <b style="color:#8F1D12">■</b> 소진(0원) &nbsp;<b style="color:#C13221">■</b> 임박(10만 미만)
+        &nbsp;<b style="color:#C9CCD0">■</b> 사용 가능 &nbsp;<b style="color:#3163C4">■</b> 미사용(만액)</p>
     </div>
     <div class="note">
       소진·임박 가맹점은 이미 한도의 97% 이상을 쓴 상태라, 수요의 3%만 분산돼도 잔액 10만원 이상을 회복합니다.
@@ -345,7 +347,6 @@ function wireTabs(){
     if(t.dataset.p==='p1'){
       if(window._kmap)window._kmap.relayout();
       else if(window._map)window._map.invalidateSize(); }
-    if(t.dataset.p==='p3'){ Plotly.Plots.resize('rbHist'); Plotly.Plots.resize('rbLorenz'); }
   });
 }
 
@@ -942,40 +943,39 @@ function buildTab3(){
   const avgBefore=donors.reduce((a,s)=>a+s.amt,0)/donors.length;
   const man=n=>(n/10000).toFixed(1)+'만원';
 
-  // ── 시각화: 잔액 분포 히스토그램 + 로렌츠 곡선 (실측 재계산 결과를 그대로 그림)
-  const BINS=[[0,1,'0원'],[1,1e5,'~10만'],[1e5,5e5,'~50만'],[5e5,1e6,'~100만'],
-              [1e6,2e6,'~200만'],[2e6,3e6,'~300만'],[3e6,LIMIT,'~400만'],[LIMIT,Infinity,'만액']];
-  const binCount=rem=>BINS.map(([lo,hi])=>rem.reduce((a,v)=>a+(v>=lo&&v<hi?1:0),0));
-  const lorenz=arr=>{                     // 사용액 누적 곡선 (100포인트로 압축)
-    const a=[...arr].sort((x,y)=>x-y),n=a.length,sum=a.reduce((s,v)=>s+v,0)||1;
-    const xs=[0],ys=[0];let cum=0;
-    for(let i=0;i<n;i++){cum+=a[i];if(i%Math.ceil(n/100)===0||i===n-1){xs.push((i+1)/n);ys.push(cum/sum);}}
-    return {xs,ys};
-  };
-  const remBefore=M.map(s=>s.amt);
-  const histBefore=binCount(remBefore);
-  const lzBefore=lorenz(M.map(s=>LIMIT-s.amt));
-  const simLay={font:FONT,margin:{l:44,r:8,t:6,b:26},paper_bgcolor:'transparent',plot_bgcolor:'transparent',
-    showlegend:false,yaxis:{gridcolor:'#ECEDEF',tickfont:{size:10}},xaxis:{tickfont:{size:10}}};
+  // ── 시각화: 도트 매트릭스 — 점 1개 = 가맹점 1곳, 슬라이더에 따라 상태색 변경
+  const stCol=rem=>rem<1?'#8F1D12':rem<LOW?'#C13221':rem>=LIMIT?'#3163C4':'#C9CCD0';
+  const wafDots=[];
+  (function buildWaffle(){
+    const box=document.getElementById('rbWaffle');
+    META.region_order.forEach(r=>{
+      const g=M.filter(s=>s.region===r).sort((a,b)=>a.amt-b.amt);
+      const h=document.createElement('div');
+      h.className='wfl-h';
+      h.innerHTML=`<b>${r}</b> <span id="wf-${r}"></span>`;
+      const w=document.createElement('div');w.className='wfl';
+      g.forEach(s=>{
+        const i=document.createElement('i');
+        i.title=`${s.name} · ${s.amt.toLocaleString()}원`;
+        w.appendChild(i);wafDots.push({el:i,s,st:''});
+      });
+      box.appendChild(h);box.appendChild(w);
+    });
+  })();
   function drawSim(c){
-    const remAfter=M.map(s=>LIMIT-c.use.get(s.id));
-    Plotly.react('rbHist',[
-      {type:'bar',name:'이전 전',x:BINS.map(b=>b[2]),y:histBefore,marker:{color:'#B9BDC2'},
-       hovertemplate:'%{x}: %{y}곳 (이전 전)<extra></extra>'},
-      {type:'bar',name:'이전 후',x:BINS.map(b=>b[2]),y:binCount(remAfter),marker:{color:'#1C4A74'},
-       hovertemplate:'%{x}: %{y}곳 (이전 후)<extra></extra>'}
-    ],{...simLay,barmode:'group',bargap:.25},{displayModeBar:false,responsive:true});
-    const lz=lorenz([...c.use.values()]);
-    Plotly.react('rbLorenz',[
-      {x:[0,1],y:[0,1],mode:'lines',name:'균등선',line:{dash:'dot',color:'#9BA0A6',width:1},hoverinfo:'skip'},
-      {x:lz.xs,y:lz.ys,mode:'lines',name:'이전 후',line:{color:'#1C4A74',width:2},
-       fill:'tonexty',fillcolor:'rgba(28,74,116,.14)',hoverinfo:'skip'},  // 색 면적 = 쏠림(지니×2)
-      {x:lzBefore.xs,y:lzBefore.ys,mode:'lines',name:'이전 전',line:{color:'#B9BDC2',width:1.5},hoverinfo:'skip'}
-    ],{...simLay,xaxis:{...simLay.xaxis,title:{text:'가맹점 누적 비율',font:{size:10.5}},range:[0,1]},
-       yaxis:{...simLay.yaxis,title:{text:'사용액 누적 비율',font:{size:10.5}},range:[0,1]},
-       annotations:[{x:.06,y:.94,xanchor:'left',showarrow:false,
-         text:`색 면적 = 쏠림 · 지니 <b>${c.gAfter.toFixed(3)}</b>`,font:{size:11,color:'#1C4A74'}}]},
-      {displayModeBar:false,responsive:true});
+    const cnt={};
+    wafDots.forEach(d=>{
+      const rem=LIMIT-c.use.get(d.s.id);
+      const col=stCol(rem);
+      if(col!==d.st){d.el.style.background=col;d.st=col;}
+      const k=cnt[d.s.region]=cnt[d.s.region]||{out:0,low:0,full:0};
+      if(rem<1)k.out++;else if(rem<LOW)k.low++;
+      if(rem>=LIMIT)k.full++;
+    });
+    META.region_order.forEach(r=>{
+      const e=document.getElementById('wf-'+r),k=cnt[r]||{out:0,low:0,full:0};
+      if(e)e.textContent=`소진 ${k.out} · 임박 ${k.low} · 미사용 ${k.full}곳`;
+    });
   }
 
   function upd(){
