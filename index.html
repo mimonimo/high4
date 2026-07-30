@@ -105,6 +105,10 @@
   .maplbl-k{font-weight:700;font-size:11.5px;color:#17181A;text-shadow:0 0 3px #fff,0 0 3px #fff}
   .mapstat{background:#fff;border:1px solid #C9CCD0;padding:7px 10px;font-size:11.5px;line-height:1.6;
     box-shadow:0 1px 4px rgba(0,0,0,.15);white-space:nowrap}
+  .kpop{position:relative;background:#fff;border:1px solid #C9CCD0;box-shadow:0 3px 10px rgba(0,0,0,.2)}
+  .kpop-x{position:absolute;top:2px;right:4px;border:none;background:none;font-size:16px;line-height:1;
+    cursor:pointer;color:#888;padding:4px 6px}
+  .kpop-x:hover{color:#17181A}
   .wheelhint{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(23,24,26,.85);
     color:#fff;font-size:12px;padding:6px 13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}
   .wheelhint.on{opacity:1}
@@ -517,6 +521,7 @@ function buildMap(){
       wh.classList.add('on');clearTimeout(whT);whT=setTimeout(()=>wh.classList.remove('on'),900);
     }
   },{passive:false});
+  wrap.addEventListener('dblclick',()=>{if(window._zoomBy)window._zoomBy(-1);}); // 더블클릭 확대
   ['lyPins','lyRegions'].forEach((id,i)=>{
     const b=document.getElementById(id);
     b.onclick=()=>{
@@ -559,7 +564,15 @@ function buildKakaoMap(){
     'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11"><circle cx="5.5" cy="5.5" r="4.2" fill="'+c+'" stroke="white" stroke-width="1.2"/></svg>'),
     new kakao.maps.Size(11,11),{offset:new kakao.maps.Point(5.5,5.5)}));
-  const iw=new kakao.maps.InfoWindow({removable:true});
+  // 커스텀 팝업 (기본 InfoWindow 대체): 빈 곳 클릭·× 로 닫힘, 열릴 때 중앙으로 팬
+  const pop=new kakao.maps.CustomOverlay({yAnchor:1.08,zIndex:6,clickable:true});
+  window._closePop=()=>pop.setMap(null);
+  kakao.maps.event.addListener(map,'click',window._closePop);
+  function openPop(s){
+    const pos=new kakao.maps.LatLng(s.lat,s.lng);
+    pop.setContent(`<div class="kpop">${popupHtml(s)}<button class="kpop-x" onclick="_closePop()" aria-label="닫기">×</button></div>`);
+    pop.setPosition(pos); pop.setMap(map); map.panTo(pos);
+  }
   const pins=[],pinById={},regionBounds={};
   M.forEach(s=>{
     if(s.lat==null)return;
@@ -568,7 +581,7 @@ function buildKakaoMap(){
       (regionBounds[s.region]=regionBounds[s.region]||new kakao.maps.LatLngBounds()).extend(pos);
     const mk=new kakao.maps.Marker({position:pos,
       image:dot(pinColor(s)),opacity:s.geo==='approx'?.45:1,title:`${s.name} · ${s.amt.toLocaleString()}원`});
-    kakao.maps.event.addListener(mk,'click',()=>{iw.setContent(popupHtml(s));iw.open(map,mk);});
+    kakao.maps.event.addListener(mk,'click',()=>openPop(s));
     mk.setMap(map); pins.push(mk); pinById[s.id]={mk,s};
   });
   let pinsOn=true, visSet=new Set(M.filter(s=>s.lat!=null).map(s=>s.id));
@@ -593,8 +606,7 @@ function buildKakaoMap(){
   window._focusPin=id=>{
     const p=pinById[id]; if(!p)return;
     map.setLevel(4);
-    map.panTo(new kakao.maps.LatLng(p.s.lat,p.s.lng));
-    iw.setContent(popupHtml(p.s)); iw.open(map,p.mk);
+    openPop(p.s);
   };
   // 지역 요약 원 + 라벨 + 통계 호버
   const ps=META.regions.map(r=>r.per_store);
