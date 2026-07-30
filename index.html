@@ -209,7 +209,6 @@
         <span class="lbl">지도</span>
         <button class="chip" id="lyColor" aria-pressed="false">핀 색: 업종별</button>
         <button class="chip" id="lySync" aria-pressed="true">목록–지도 연동</button>
-        <button class="chip" id="lyLock" style="display:none" aria-pressed="false">지도 조작 켜기</button>
       </div>
       <div style="position:relative">
         <div id="map" style="height:380px"></div>
@@ -241,7 +240,7 @@
         <button class="chip" id="dReset">초기화</button>
       </div>
     </div>
-    <div class="chartbox"><div id="heatmap" style="height:440px"></div></div>
+    <div class="chartbox" style="overflow-x:auto"><div id="heatmap" style="height:440px;min-width:660px"></div></div>
     <div class="chartbox" id="cellBox" style="margin-top:14px;display:none">
       <div id="cellHead" style="font-size:13.5px;font-weight:700"></div>
       <p class="count" id="cellSub" style="margin:2px 0 8px"></p>
@@ -538,18 +537,20 @@ function buildMap(){
     window._viewFilterOn=!on;
     if(window.render)render();
   };
-  // 모바일: 지도 조작 기본 잠금(페이지 스크롤 우선) + 토글로 해제
+  // 모바일: 한 손가락 = 페이지 스크롤, 두 손가락 = 지도 조작 (상용 임베드 방식)
   const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
   window._mapCoarse=coarse;
-  const lk=document.getElementById('lyLock');
   if(coarse){
-    lk.style.display='';
-    lk.onclick=()=>{
-      const on=lk.getAttribute('aria-pressed')==='true';
-      lk.setAttribute('aria-pressed',String(!on));
-      lk.textContent=on?'지도 조작 켜기':'지도 조작 끄기';
-      if(window._mapCtl)window._mapCtl.unlock(!on);
-    };
+    const setOp=on=>{if(window._mapCtl)window._mapCtl.unlock(on);};
+    wrap.addEventListener('touchstart',e=>{if(e.touches.length>=2)setOp(true);},{passive:true});
+    wrap.addEventListener('touchend',e=>{if(e.touches.length<2)setOp(false);},{passive:true});
+    wrap.addEventListener('touchcancel',()=>setOp(false),{passive:true});
+    wrap.addEventListener('touchmove',e=>{
+      if(e.touches.length===1){
+        wh.textContent='두 손가락으로 지도를 조작하세요';
+        wh.classList.add('on');clearTimeout(whT);whT=setTimeout(()=>wh.classList.remove('on'),900);
+      }
+    },{passive:true});
   }
   if(window.kakao&&kakao.maps&&kakao.maps.load){ kakao.maps.load(buildKakaoMap); }
   else buildLeafletMap();
