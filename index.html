@@ -178,7 +178,7 @@
   <div class="wrap">
     <div class="eyebrow">폐광지역 상생 포인트 상황판 · 팀 HIGH4</div>
     <h1>HIGH1 POINT FLOW</h1>
-    <p class="sub">가맹점 1,548곳의 잔여한도와 사용기록 507,628건으로 폐광지역 상생 포인트의 소비 사각지대를 찾습니다.</p>
+    <p class="sub">폐광지역 상생 포인트, 어디서 막히고 어디서 잠자는가.</p>
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" aria-selected="true"  data-p="p1">가맹점 조회</button>
       <button class="tab" role="tab" aria-selected="false" data-p="p2">사각지대 진단</button>
@@ -217,9 +217,8 @@
       </div>
     </div>
     <p class="count" style="margin:6px 0 14px 2px">
-      지도와 목록은 연동됩니다 — 지도를 움직이면 화면 범위의 가맹점만 목록에, 필터를 걸면 해당 핀만 지도에.
-      <span id="capAmt"><b style="color:#8F1D12">소진(0원)</b> ·
-      <b style="color:#C13221">임박(10만 미만)</b> · <b style="color:#3163C4">미사용(만액)</b> · 회색 일반 / 옅은 핀은 위치 근사.</span>
+      <span id="capAmt"><b style="color:#8F1D12">■</b> 소진(0원) &nbsp;<b style="color:#C13221">■</b> 임박(10만 미만)
+      &nbsp;<b style="color:#3163C4">■</b> 미사용(만액) &nbsp;<span style="color:#9BA0A6">■ 일반 · 옅은 핀 위치 근사</span></span>
       <span id="capInd" style="display:none"></span></p>
     <p class="count" id="count"></p>
     <div class="grid" id="grid"></div>
@@ -266,11 +265,8 @@
       <label for="rb">과부하 가맹점의 수요를 유휴 가맹점으로 이전</label>
       <p class="rb-val"><span id="rbVal">10</span><small>%</small></p>
       <input type="range" id="rb" min="0" max="30" value="10" step="1">
-      <p class="rb-hint">사북읍 등 과부하 지역에 몰린 수요 일부를, 한도가 남아도는 가맹점(만액 242곳, 유휴 9.68억원)으로 옮기면 어떻게 되는지 시뮬레이션합니다.
-      가맹점별 사용액은 실측 잔여한도로 계산(한도 400만원 − 잔액)하며, 소진·임박 가맹점 사용액의 이전 비율만큼을 같은 지역 만액 가맹점에
-      그 지역 활성 가맹점의 평균 사용액까지 배분한 뒤 1,548곳을 다시 집계합니다.
-      소진·임박 가맹점은 이미 한도의 97% 이상을 쓴 상태라 몇 %만 이전해도 10만원 문턱을 한꺼번에 넘으며,
-      잔액 0원 가맹점은 소진 이후의 수요가 기록되지 않으므로 회복 폭은 최소 추정치입니다.</p>
+      <p class="rb-hint">잔액이 바닥난 가맹점의 수요 일부를 같은 지역의 미사용 가맹점(242곳, 유휴 9.68억원)으로 옮기고,
+      1,548곳 전체를 실측 잔여한도 기준으로 다시 집계합니다.</p>
     </div>
     <div class="rb-out">
       <div class="rb-card"><div class="t">결제가 막히던 가맹점 (잔액 10만원 미만)</div>
@@ -285,17 +281,16 @@
     </div>
     <div class="chartbox" style="margin-top:14px">
       <div class="k" style="font-size:12.5px;color:var(--muted);margin:2px 0 2px">
-        가맹점 1,548곳의 상태 변화 — <b>점 하나가 가맹점 1곳</b>입니다 (지역별, 잔액 적은 순 · 슬라이더 연동)</div>
+        <b>점 하나 = 가맹점 1곳</b> · 지역별, 잔액 적은 순</div>
       <div id="rbWaffle"></div>
       <p class="count" style="margin:12px 0 0">
         <b style="color:#8F1D12">■</b> 소진(0원) &nbsp;<b style="color:#C13221">■</b> 임박(10만 미만)
         &nbsp;<b style="color:#C9CCD0">■</b> 사용 가능 &nbsp;<b style="color:#3163C4">■</b> 미사용(만액)</p>
     </div>
     <div class="note">
-      소진·임박 가맹점은 이미 한도의 97% 이상을 쓴 상태라, 수요의 3%만 분산돼도 잔액 10만원 이상을 회복합니다.
-      실제 포인트 발급 제도 변경은 강원랜드의 권한이므로, 본 화면은 <b>정책 효과를 미리 보는 시뮬레이터</b>입니다.
-      A지점(과부하)에서 결제 시 B지점(유휴) 전용 보너스 포인트를 지급하는 방식 등으로 구현할 수 있으며,
-      재원은 이미 존재하는 유휴 한도이므로 가맹점을 새로 늘리지 않아도 됩니다.
+      수요의 <b>3%</b>만 분산돼도 결제가 막히던 90곳이 모두 잔액을 회복합니다.
+      재원은 이미 존재하는 유휴 한도 9.68억원 — 가맹점을 새로 늘리지 않아도 됩니다.
+      본 화면은 <b>정책 효과를 미리 보는 시뮬레이터</b>입니다.
     </div>
   </section>
 
@@ -303,8 +298,8 @@
 
 <footer>
   <div class="wrap">
-    데이터 — 공공데이터포털 · ㈜강원랜드 「하이원포인트 사용현황」(2021~2025년 5개년, 총 2,376,780건 · 주기성 과거 데이터 포함) · 「하이원포인트 가맹점 상세정보」(1,548개소, 캠프 중 1회 수집한 정적 데이터) ·
-    업종은 상호명 기반 추정 + 카카오 플레이스 위치 교차검증(150건 표본 정확도 91.2%, 발견 오분류는 수정 반영) · 미분류 107곳은 진단 지표에서 제외 · 팀 HIGH4
+    데이터 — 공공데이터포털 ㈜강원랜드 · 하이원포인트 사용현황(2021~2025, 2,376,780건) · 가맹점 상세정보(1,548개소) ·
+    업종 분류 교차검증 정확도 91.2% · 미분류 107곳 지표 제외 · 팀 HIGH4
   </div>
 </footer>
 
