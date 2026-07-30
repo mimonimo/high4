@@ -40,7 +40,7 @@
     --disp:'Black Han Sans',sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--ink);
+  body{background:var(--bg);color:var(--ink);overflow-x:clip;
     font-family:'IBM Plex Sans KR','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
     -webkit-font-smoothing:antialiased;line-height:1.5}
   .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
@@ -251,9 +251,9 @@
     <div class="note" id="diagNote"></div>
     <div class="chartbox" style="margin-top:14px">
       <div style="display:flex;gap:18px;flex-wrap:wrap">
-        <div style="flex:2 1 300px"><div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">2025년 월별 사용 건수</div><div id="tsMonth" style="height:150px"></div></div>
-        <div style="flex:1 1 200px"><div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">요일별 일평균</div><div id="tsWday" style="height:150px"></div></div>
-        <div style="flex:1.4 1 240px"><div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">연도별 사용 건수 (<b style="color:#1C4A74">■</b> 사북읍 · <b style="color:#C5D3E0">■</b> 그 외)</div><div id="tsYear" style="height:150px"></div></div>
+        <div style="flex:2 1 300px;min-width:0;overflow:hidden"><div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">2025년 월별 사용 건수</div><div id="tsMonth" style="height:150px"></div></div>
+        <div style="flex:1 1 200px;min-width:0;overflow:hidden"><div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">요일별 일평균</div><div id="tsWday" style="height:150px"></div></div>
+        <div style="flex:1.4 1 240px;min-width:0;overflow:hidden"><div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">연도별 사용 건수 (<b style="color:#1C4A74">■</b> 사북읍 · <b style="color:#C5D3E0">■</b> 그 외)</div><div id="tsYear" style="height:150px"></div></div>
       </div>
       <p class="count" id="tsNote" style="margin:8px 0 0 2px"></p>
     </div>
@@ -286,12 +286,12 @@
         <div class="d" id="rbAmtHint">만액 가맹점에 배분되는 사용액</div></div>
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px">
-      <div class="chartbox" style="flex:1.4 1 320px">
+      <div class="chartbox" style="flex:1.4 1 320px;min-width:0;overflow:hidden">
         <div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">가맹점 잔액 분포 —
           <b style="color:#9BA0A6">이전 전</b> vs <b style="color:#1C4A74">이전 후</b> (슬라이더 연동)</div>
         <div id="rbHist" style="height:235px"></div>
       </div>
-      <div class="chartbox" style="flex:1 1 280px">
+      <div class="chartbox" style="flex:1 1 280px;min-width:0;overflow:hidden">
         <div class="k" style="font-size:12px;color:var(--muted);margin:2px 0 4px">사용액 로렌츠 곡선 — 균등선에 가까울수록 쏠림 완화</div>
         <div id="rbLorenz" style="height:235px"></div>
       </div>
