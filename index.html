@@ -277,18 +277,15 @@
       잔액 0원 가맹점은 소진 이후의 수요가 기록되지 않으므로 회복 폭은 최소 추정치입니다.</p>
     </div>
     <div class="rb-out">
-      <div class="rb-card"><div class="t">소진·임박 가맹점 평균 잔액</div>
-        <div class="big"><span id="rbAvgBefore"></span> <span class="rb-arrow">→</span> <span id="rbAvgAfter"></span></div>
+      <div class="rb-card"><div class="t">결제가 막히던 가맹점 (잔액 10만원 미만)</div>
+        <div class="big"><span id="rbLowBefore"></span> <span class="rb-arrow">→</span> <span id="rbLowAfter"></span>곳</div>
         <div class="d good" id="rbLowDelta"></div></div>
-      <div class="rb-card"><div class="t">미사용 가맹점 (한도 400만원 그대로)</div>
-        <div class="big"><span id="rbFullBefore"></span> <span class="rb-arrow">→</span> <span id="rbFullAfter"></span></div>
+      <div class="rb-card"><div class="t">포인트가 잠자던 가맹점 (한도 400만원 그대로)</div>
+        <div class="big"><span id="rbFullBefore"></span> <span class="rb-arrow">→</span> <span id="rbFullAfter"></span>곳</div>
         <div class="d good" id="rbFullDelta"></div></div>
-      <div class="rb-card"><div class="t">사용액 지니계수 (가맹점 간 쏠림)</div>
-        <div class="big"><span id="rbGiniBefore"></span> <span class="rb-arrow">→</span> <span id="rbGiniAfter"></span></div>
-        <div class="d good" id="rbGiniDelta"></div></div>
-      <div class="rb-card"><div class="t">활성화되는 유휴 한도</div>
+      <div class="rb-card"><div class="t">다시 돌기 시작하는 포인트</div>
         <div class="big" id="rbAmt"></div>
-        <div class="d" id="rbAmtHint">만액 가맹점에 배분되는 사용액</div></div>
+        <div class="d" id="rbAmtHint">잠자던 가맹점에 배분되는 사용액</div></div>
     </div>
     <div class="chartbox" style="margin-top:14px">
       <div class="k" style="font-size:12.5px;color:var(--muted);margin:2px 0 2px">
@@ -905,14 +902,6 @@ function buildTab3(){
   });
   const $rb=document.getElementById('rb'),$v=document.getElementById('rbVal');
 
-  function gini(arr){
-    const a=[...arr].sort((x,y)=>x-y),n=a.length,sum=a.reduce((s,v)=>s+v,0);
-    if(!sum)return 0;
-    let w=0;a.forEach((v,i)=>w+=(i+1)*v);
-    return (2*w)/(n*sum)-(n+1)/n;
-  }
-  const gBefore=gini(M.map(s=>LIMIT-s.amt));
-
   function calc(pct){
     const p=pct/100;
     const use=new Map(M.map(s=>[s.id,LIMIT-s.amt]));
@@ -935,13 +924,10 @@ function buildTab3(){
     }
     // ③ 전 가맹점 재집계
     const lowAfter=M.reduce((a,s)=>a+((LIMIT-use.get(s.id))<LOW?1:0),0);
-    const avgAfter=donors.reduce((a,s)=>a+(LIMIT-use.get(s.id)),0)/donors.length;
-    return {lowBefore:donors.length,lowAfter,avgAfter,
+    return {lowBefore:donors.length,lowAfter,
             fullBefore:idle.length,fullAfter:idle.length-activatedCnt,
-            activated:moved,gAfter:gini([...use.values()]),use};
+            activated:moved,use};
   }
-  const avgBefore=donors.reduce((a,s)=>a+s.amt,0)/donors.length;
-  const man=n=>(n/10000).toFixed(1)+'만원';
 
   // ── 시각화: 도트 매트릭스 — 점 1개 = 가맹점 1곳, 슬라이더에 따라 상태색 변경
   const stCol=rem=>rem<1?'#8F1D12':rem<LOW?'#C13221':rem>=LIMIT?'#3163C4':'#C9CCD0';
@@ -981,16 +967,12 @@ function buildTab3(){
   function upd(){
     const pct=+$rb.value;$v.textContent=pct;
     const c=calc(pct);
-    document.getElementById('rbAvgBefore').textContent=man(avgBefore);
-    document.getElementById('rbAvgAfter').textContent=man(c.avgAfter);
-    document.getElementById('rbLowDelta').textContent=
-      `잔액 10만원 미만 ${c.lowBefore} → ${c.lowAfter}곳`;
+    document.getElementById('rbLowBefore').textContent=c.lowBefore;
+    document.getElementById('rbLowAfter').textContent=c.lowAfter;
+    document.getElementById('rbLowDelta').textContent=pct?`${c.lowBefore-c.lowAfter}곳 해소`:'';
     document.getElementById('rbFullBefore').textContent=c.fullBefore;
     document.getElementById('rbFullAfter').textContent=c.fullAfter;
-    document.getElementById('rbFullDelta').textContent=pct?`−${c.fullBefore-c.fullAfter}곳 감소`:'';
-    document.getElementById('rbGiniBefore').textContent=gBefore.toFixed(3);
-    document.getElementById('rbGiniAfter').textContent=c.gAfter.toFixed(3);
-    document.getElementById('rbGiniDelta').textContent=pct?`−${(gBefore-c.gAfter).toFixed(3)} 완화`:'';
+    document.getElementById('rbFullDelta').textContent=pct?`${c.fullBefore-c.fullAfter}곳이 깨어남`:'';
     document.getElementById('rbAmt').textContent=won(c.activated);
     drawSim(c);
   }
