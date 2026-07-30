@@ -486,10 +486,16 @@ function buildMap(){
   // Ctrl/⌘+휠 줌 (트랙패드 핀치 포함) — 일반 휠은 페이지 스크롤 유지
   const wrap=document.getElementById('map').parentNode;
   const wh=document.getElementById('wheelHint');let whT;
+  let acc=0,lastZ=0;                 // 트랙패드 연속 이벤트 완충: 누적 임계 + 쿨다운
   wrap.addEventListener('wheel',e=>{
     if(e.ctrlKey||e.metaKey){
       e.preventDefault();
-      if(window._zoomBy)window._zoomBy(e.deltaY>0?1:-1);
+      acc+=e.deltaY;
+      const now=Date.now();
+      if(Math.abs(acc)>=60&&now-lastZ>200){
+        if(window._zoomBy)window._zoomBy(acc>0?1:-1);
+        acc=0;lastZ=now;
+      }
     }else{
       wh.classList.add('on');clearTimeout(whT);whT=setTimeout(()=>wh.classList.remove('on'),900);
     }
@@ -558,7 +564,7 @@ function buildKakaoMap(){
     visSet=ns;
   };
   window._recolor=()=>{for(const id in pinById){const p=pinById[id];p.mk.setImage(dot(pinColor(p.s)));}};
-  window._zoomBy=d=>map.setLevel(map.getLevel()+d);
+  window._zoomBy=d=>map.setLevel(map.getLevel()+d,{animate:true});
   window._fitRegions=set=>{                    // 지역 칩 선택 → 해당 지역(들)로 확대
     if(!set||set.size===0){map.setBounds(window._kbounds,32);return;}
     const b=new kakao.maps.LatLngBounds();
