@@ -968,10 +968,13 @@ function buildTab3(){
     const lz=lorenz([...c.use.values()]);
     Plotly.react('rbLorenz',[
       {x:[0,1],y:[0,1],mode:'lines',name:'균등선',line:{dash:'dot',color:'#9BA0A6',width:1},hoverinfo:'skip'},
-      {x:lzBefore.xs,y:lzBefore.ys,mode:'lines',name:'이전 전',line:{color:'#B9BDC2',width:2},hoverinfo:'skip'},
-      {x:lz.xs,y:lz.ys,mode:'lines',name:'이전 후',line:{color:'#1C4A74',width:2},hoverinfo:'skip'}
+      {x:lz.xs,y:lz.ys,mode:'lines',name:'이전 후',line:{color:'#1C4A74',width:2},
+       fill:'tonexty',fillcolor:'rgba(28,74,116,.14)',hoverinfo:'skip'},  // 색 면적 = 쏠림(지니×2)
+      {x:lzBefore.xs,y:lzBefore.ys,mode:'lines',name:'이전 전',line:{color:'#B9BDC2',width:1.5},hoverinfo:'skip'}
     ],{...simLay,xaxis:{...simLay.xaxis,title:{text:'가맹점 누적 비율',font:{size:10.5}},range:[0,1]},
-       yaxis:{...simLay.yaxis,title:{text:'사용액 누적 비율',font:{size:10.5}},range:[0,1]}},
+       yaxis:{...simLay.yaxis,title:{text:'사용액 누적 비율',font:{size:10.5}},range:[0,1]},
+       annotations:[{x:.06,y:.94,xanchor:'left',showarrow:false,
+         text:`색 면적 = 쏠림 · 지니 <b>${c.gAfter.toFixed(3)}</b>`,font:{size:11,color:'#1C4A74'}}]},
       {displayModeBar:false,responsive:true});
   }
 
