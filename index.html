@@ -99,12 +99,6 @@
   .tag.un{background:#EEEFF1;color:#9198A1}
   .maplink{margin-left:auto;font-size:11px;color:var(--idle);text-decoration:none;font-weight:600;align-self:center}
   .maplink:hover{text-decoration:underline}
-  .maplbl{background:transparent;border:none;box-shadow:none;font-weight:700;font-size:11.5px;color:#17181A;
-    text-shadow:0 0 3px #fff,0 0 3px #fff}
-  .maplbl::before{display:none}
-  .maplbl-k{font-weight:700;font-size:11.5px;color:#17181A;text-shadow:0 0 3px #fff,0 0 3px #fff}
-  .mapstat{background:#fff;border:1px solid #C9CCD0;padding:7px 10px;font-size:11.5px;line-height:1.6;
-    box-shadow:0 1px 4px rgba(0,0,0,.15);white-space:nowrap}
   .kpop{position:relative;background:#fff;border:1px solid #C9CCD0;box-shadow:0 3px 10px rgba(0,0,0,.2)}
   .kpop-x{position:absolute;top:2px;right:4px;border:none;background:none;font-size:16px;line-height:1;
     cursor:pointer;color:#888;padding:4px 6px}
@@ -212,11 +206,8 @@
     </div>
     <div class="chartbox" style="margin-bottom:6px">
       <div class="row" style="margin-bottom:8px">
-        <span class="lbl">지도 레이어</span>
-        <button class="chip" id="lyPins" aria-pressed="true">가맹점 핀</button>
-        <button class="chip" id="lyRegions" aria-pressed="true">지역 요약</button>
+        <span class="lbl">지도</span>
         <button class="chip" id="lyColor" aria-pressed="false">핀 색: 업종별</button>
-        <button class="chip" id="lyReset">전체 보기</button>
         <button class="chip" id="lySync" aria-pressed="true">목록–지도 연동</button>
         <button class="chip" id="lyLock" style="display:none" aria-pressed="false">지도 조작 켜기</button>
       </div>
@@ -229,8 +220,7 @@
       지도와 목록은 연동됩니다 — 지도를 움직이면 화면 범위의 가맹점만 목록에, 필터를 걸면 해당 핀만 지도에.
       <span id="capAmt"><b style="color:#8F1D12">소진(0원)</b> ·
       <b style="color:#C13221">임박(10만 미만)</b> · <b style="color:#3163C4">미사용(만액)</b> · 회색 일반 / 옅은 핀은 위치 근사.</span>
-      <span id="capInd" style="display:none"></span>
-      큰 원은 지역 요약(호버 시 통계 · 클릭하면 그 지역으로 확대)</p>
+      <span id="capInd" style="display:none"></span></p>
     <p class="count" id="count"></p>
     <div class="grid" id="grid"></div>
   </section>
@@ -374,8 +364,7 @@ function buildTab1(){
   META.region_order.forEach(r=>{
     const b=document.createElement('button');b.className='chip';b.textContent=r;b.setAttribute('aria-pressed','false');
     b.onclick=()=>{const on=b.getAttribute('aria-pressed')==='true';b.setAttribute('aria-pressed',String(!on));
-      on?activeRegions.delete(r):activeRegions.add(r);render();
-      if(window._fitRegions)window._fitRegions(activeRegions);};
+      on?activeRegions.delete(r):activeRegions.add(r);render();autoFit(80);};
     window._regionBtns[r]=b;
     $rc.appendChild(b);
   });
@@ -383,6 +372,17 @@ function buildTab1(){
     const o=document.createElement('option');o.value=i;o.textContent=i;$ind.appendChild(o);
   });
   $ex.onclick=()=>{const on=$ex.getAttribute('aria-pressed')==='true';$ex.setAttribute('aria-pressed',String(!on));render();};
+
+  // 필터 변경 → 지도 자동 이동 (검색은 입력 멈춘 뒤, 필터 없으면 전체 복귀)
+  let fitT;
+  function autoFit(delay){
+    clearTimeout(fitT);
+    fitT=setTimeout(()=>{
+      const active=$q.value.trim()||$ind.value||activeRegions.size>0;
+      if(!active){if(window._resetView)window._resetView();return;}
+      if(window._fitPins)window._fitPins(window._lastPinRows||[]);
+    },delay==null?450:delay);
+  }
 
   // 대안 추천: 같은 지역·업종 + 잔액 250만↑ 후보를 ①같은 도로명(번호 가까운 순) ②같은 동/리 ③잔액 많은 순으로
   function findAlt(s){
@@ -409,6 +409,7 @@ function buildTab1(){
       (!$ind.value||s.industry===$ind.value)&&
       (activeRegions.size===0||activeRegions.has(s.region)));
     if(window._syncPins)window._syncPins(rows);   // 지도 핀은 검색·필터만 반영
+    window._lastPinRows=rows;
     if(inView)rows=rows.filter(inView);           // 목록은 지도 화면 범위까지 반영
     const by=$sort.value;
     rows.sort((a,b)=>{
@@ -443,7 +444,10 @@ function buildTab1(){
       </article>`;
     }).join('')+(rows.length>180?`<div class="empty">외 ${rows.length-180}곳 — 검색으로 좁혀보세요.</div>`:'');
   };
-  $q.oninput=render;$ind.onchange=render;$sort.onchange=render;render();
+  $q.oninput=()=>{render();autoFit();};
+  $ind.onchange=()=>{render();autoFit(80);};
+  $sort.onchange=render;
+  render();
   // 카드 호버 → 지도 핀 강조
   $grid.addEventListener('mouseover',e=>{const a=e.target.closest&&e.target.closest('.mc');
     if(a&&a.dataset.id&&window._hlPin)window._hlPin(+a.dataset.id,true);});
@@ -531,10 +535,6 @@ function buildMap(){
     }
   },{passive:false});
   wrap.addEventListener('dblclick',()=>{if(window._zoomBy)window._zoomBy(-1);}); // 더블클릭 확대
-  document.getElementById('lyReset').onclick=()=>{
-    if(window._resetView)window._resetView();
-    if(window._closePop)window._closePop();
-  };
   window._viewFilterOn=true;
   const sy=document.getElementById('lySync');
   sy.onclick=()=>{
@@ -543,14 +543,6 @@ function buildMap(){
     window._viewFilterOn=!on;
     if(window.render)render();
   };
-  ['lyPins','lyRegions'].forEach((id,i)=>{
-    const b=document.getElementById(id);
-    b.onclick=()=>{
-      const on=b.getAttribute('aria-pressed')==='true';
-      b.setAttribute('aria-pressed',String(!on));
-      if(window._layers)(i===0?window._layers.pins:window._layers.regions)(!on);
-    };
-  });
   // 모바일: 지도 조작 기본 잠금(페이지 스크롤 우선) + 토글로 해제
   const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
   window._mapCoarse=coarse;
@@ -595,21 +587,19 @@ function buildKakaoMap(){
     pop.setContent(`<div class="kpop">${popupHtml(s)}<button class="kpop-x" onclick="_closePop()" aria-label="닫기">×</button></div>`);
     pop.setPosition(pos); pop.setMap(map); map.panTo(pos);
   }
-  const pins=[],pinById={},regionBounds={};
+  const pins=[],pinById={};
   M.forEach(s=>{
     if(s.lat==null)return;
     const pos=new kakao.maps.LatLng(s.lat,s.lng);
-    if(s.geo!=='approx')
-      (regionBounds[s.region]=regionBounds[s.region]||new kakao.maps.LatLngBounds()).extend(pos);
     const mk=new kakao.maps.Marker({position:pos,
       image:dot(pinColor(s),curPx),opacity:s.geo==='approx'?.45:1,title:`${s.name} · ${s.amt.toLocaleString()}원`});
     kakao.maps.event.addListener(mk,'click',()=>openPop(s));
     mk.setMap(map); pins.push(mk); pinById[s.id]={mk,s};
   });
-  let pinsOn=true, visSet=new Set(M.filter(s=>s.lat!=null).map(s=>s.id));
+  let visSet=new Set(M.filter(s=>s.lat!=null).map(s=>s.id));
   window._syncPins=rows=>{                    // 조회 필터 결과와 지도 동기화 (변경분만 갱신)
     const ns=new Set(rows.map(s=>s.id));
-    if(pinsOn)for(const id in pinById){
+    for(const id in pinById){
       const i=+id,show=ns.has(i);
       if(show!==visSet.has(i))pinById[id].mk.setMap(show?map:null);
     }
@@ -623,12 +613,12 @@ function buildKakaoMap(){
     return s=>b.contain(new kakao.maps.LatLng(s.lat,s.lng));};
   kakao.maps.event.addListener(map,'idle',()=>{
     if(window._viewFilterOn&&window.render)render();});
-  window._fitRegions=set=>{                    // 지역 칩 선택 → 해당 지역(들)로 확대
-    if(!set||set.size===0){map.setBounds(window._kbounds,32);return;}
+  window._fitPins=rows=>{                      // 필터 결과 위치로 자동 이동
+    const pts=rows.filter(s=>s.lat!=null&&s.geo!=='approx');
+    if(!pts.length)return;
     const b=new kakao.maps.LatLngBounds();
-    set.forEach(r=>{const rb=regionBounds[r];
-      if(rb){b.extend(rb.getSouthWest());b.extend(rb.getNorthEast());}});
-    if(!b.isEmpty())map.setBounds(b,24);
+    pts.forEach(s=>b.extend(new kakao.maps.LatLng(s.lat,s.lng)));
+    map.setBounds(b,28);
   };
   // 조회 탭 카드에서 호출: 해당 가맹점으로 확대 + 팝업
   window._focusPin=id=>{
@@ -636,46 +626,13 @@ function buildKakaoMap(){
     map.setLevel(4);
     openPop(p.s);
   };
-  // 지역 요약 원 + 라벨 + 통계 호버
-  const ps=META.regions.map(r=>r.per_store);
-  const pmin=Math.min(...ps),pmax=Math.max(...ps);
-  const lerp=(a,b,t)=>Math.round(a+(b-a)*t);
-  const ramp=t=>`rgb(${lerp(0x7F,0x1C,t)},${lerp(0xA6,0x4A,t)},${lerp(0xCB,0x74,t)})`;
-  const hover=new kakao.maps.CustomOverlay({yAnchor:1.25,zIndex:3});
-  const regs=[];
-  META.regions.forEach(r=>{
-    const pos=REGION_POS[r.region]; if(!pos)return;
-    const ll=new kakao.maps.LatLng(pos[0],pos[1]);
-    const t=(r.per_store-pmin)/(pmax-pmin);
-    const c=new kakao.maps.Circle({center:ll,radius:500+Math.sqrt(r.stores)*55,
-      strokeWeight:1,strokeColor:'#17181A',strokeOpacity:.8,fillColor:ramp(t),fillOpacity:.3});
-    kakao.maps.event.addListener(c,'click',()=>{
-      if(regionBounds[r.region])map.setBounds(regionBounds[r.region],24);
-    });
-    kakao.maps.event.addListener(c,'mouseover',()=>{
-      hover.setContent(`<div class="mapstat"><b>${r.region}</b> 가맹점 ${r.stores}곳<br>`+
-        `사용 ${r.usage.toLocaleString()}건 · 가맹점당 ${r.per_store}건<br>`+
-        `잔액 0원 ${r.zero} · 10만 미만 ${r.low} · 만액 ${r.full}곳<br>`+
-        `<span style="color:#888">클릭하면 이 지역으로 확대</span></div>`);
-      hover.setPosition(ll); hover.setMap(map);
-    });
-    kakao.maps.event.addListener(c,'mouseout',()=>hover.setMap(null));
-    const lbl=new kakao.maps.CustomOverlay({position:ll,yAnchor:-0.25,
-      content:`<div class="maplbl-k">${r.region}</div>`});
-    c.setMap(map); lbl.setMap(map); regs.push(c,lbl);
-  });
-  // 줌 연동: 확대하면 지역 요약 자동 숨김 + 핀 크기 확대 (상용 지도 방식)
-  let regionsOn=true;
-  const applyRegions=()=>{const show=regionsOn&&map.getLevel()>=9;regs.forEach(o=>o.setMap(show?map:null));};
+  // 핀 크기 줌 연동 (확대할수록 커짐)
   const pinPx=()=>{const l=map.getLevel();return l<=4?16:l<=6?13:l<=8?11:9;};
   const applyPinSize=()=>{const px=pinPx();if(px===curPx)return;curPx=px;
     for(const id in pinById){const p=pinById[id];p.mk.setImage(dot(pinColor(p.s),curPx));}};
-  kakao.maps.event.addListener(map,'zoom_changed',()=>{applyRegions();applyPinSize();});
-  window._layers={pins:on=>{pinsOn=on;for(const id in pinById)pinById[id].mk.setMap(on&&visSet.has(+id)?map:null);},
-                  regions:on=>{regionsOn=on;applyRegions();}};
+  kakao.maps.event.addListener(map,'zoom_changed',applyPinSize);
   window._resetView=()=>map.setBounds(window._kbounds,32);
   map.setBounds(bounds,32);
-  applyRegions();
 }
 
 function buildLeafletMap(){
@@ -691,10 +648,9 @@ function buildLeafletMap(){
     {maxZoom:18,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
   // 가맹점 핀: 지오코딩 좌표(카카오 로컬, 로컬 1회) + 잔액 상태색
   const pins=L.layerGroup();
-  const pinById={},regionPts={};
+  const pinById={};
   M.forEach(s=>{
     if(s.lat==null)return;
-    if(s.geo!=='approx')(regionPts[s.region]=regionPts[s.region]||[]).push([s.lat,s.lng]);
     const mk=L.circleMarker([s.lat,s.lng],{radius:3.2,color:'#fff',weight:.6,
       fillColor:pinColor(s),fillOpacity:s.geo==='approx'?.4:.85})
      .bindPopup(popupHtml(s))
@@ -716,39 +672,12 @@ function buildLeafletMap(){
     const p=pinById[id]; if(!p)return;
     map.setView(p.mk.getLatLng(),16); p.mk.openPopup();
   };
-  window._regionZoom=r=>{ if(regionPts[r])map.fitBounds(regionPts[r],{padding:[24,24]}); };
-  window._fitRegions=set=>{
-    if(!set||set.size===0){map.fitBounds(Object.values(REGION_POS),{padding:[34,34]});return;}
-    let pts=[]; set.forEach(r=>{if(regionPts[r])pts=pts.concat(regionPts[r]);});
-    if(pts.length)map.fitBounds(pts,{padding:[24,24]});
+  window._fitPins=rows=>{
+    const pts=rows.filter(s=>s.lat!=null&&s.geo!=='approx').map(s=>[s.lat,s.lng]);
+    if(pts.length)map.fitBounds(pts,{padding:[26,26]});
   };
-  // 지역 요약 원
-  const regions=L.layerGroup();
-  const ps=META.regions.map(r=>r.per_store);
-  const pmin=Math.min(...ps),pmax=Math.max(...ps);
-  const lerp=(a,b,t)=>Math.round(a+(b-a)*t);
-  const ramp=t=>`rgb(${lerp(0x7F,0x1C,t)},${lerp(0xA6,0x4A,t)},${lerp(0xCB,0x74,t)})`; // #7FA6CB→#1C4A74
-  META.regions.forEach(r=>{
-    const pos=REGION_POS[r.region]; if(!pos)return;
-    const t=(r.per_store-pmin)/(pmax-pmin);
-    const mk=L.circleMarker(pos,{
-      radius:7+Math.sqrt(r.stores)*0.85,
-      color:'#17181A',weight:1,fillColor:ramp(t),fillOpacity:.35
-    }).addTo(regions);
-    mk.bindTooltip(`<b>${r.region}</b> 가맹점 ${r.stores}곳<br>사용 ${r.usage.toLocaleString()}건 · 가맹점당 ${r.per_store}건<br>`+
-      `잔액 0원 ${r.zero} · 10만 미만 ${r.low} · 만액 ${r.full}곳`,{direction:'top',offset:[0,-6]});
-    L.tooltip({permanent:true,direction:'bottom',offset:[0,6],className:'maplbl'})
-      .setLatLng(pos).setContent(r.region).addTo(regions);
-    mk.on('click',()=>window._regionZoom(r.region));
-  });
-  regions.addTo(map); pins.addTo(map);   // 핀이 요약 원 위에 오도록
-  let regionsOn=true;
-  const applyRegions=()=>{const show=regionsOn&&map.getZoom()<=10;
-    show?map.addLayer(regions):map.removeLayer(regions);};
-  map.on('zoomend',applyRegions);
+  pins.addTo(map);
   map.on('moveend',()=>{if(window._viewFilterOn&&window.render)render();});
-  window._layers={pins:on=>on?map.addLayer(pins):map.removeLayer(pins),
-                  regions:on=>{regionsOn=on;applyRegions();}};
   window._resetView=()=>map.fitBounds(Object.values(REGION_POS),{padding:[34,34]});
   window._viewTest=()=>{const b=map.getBounds();return s=>b.contains([s.lat,s.lng]);};
   window._hlPin=(id,on)=>{const p=pinById[id];if(p)p.mk.setStyle({radius:on?6.5:3.2});};
